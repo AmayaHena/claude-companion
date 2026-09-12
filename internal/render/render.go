@@ -43,6 +43,14 @@ func Event(e event.Event, width int, loc *time.Location, shade int) []string {
 		lines = fileChange(v, width, loc, accentFile[shade])
 	case event.Rejected:
 		lines = []string{rejected(v, width, loc)}
+	case event.Agent:
+		lines = []string{header(v.At, loc, glyphAgent, styleAgent.Render(clean(v.Description)), v.Type, width)}
+	case event.Skill:
+		title := v.Name
+		if v.Args != "" {
+			title += " " + v.Args
+		}
+		lines = []string{header(v.At, loc, glyphSkill, styleSkill.Render(clean(title)), "", width)}
 	default:
 		return nil
 	}
@@ -177,24 +185,90 @@ func wrapRows(lx chroma.Lexer, text string, width int) []string {
 }
 
 // wrapPlain word-wraps cleaned plain text and trims the trailing space
-// ansi.Wrap leaves at a break point.
+// ansi.Wrap leaves at a break point. ansi.Wrap can hand back a row one cell
+// over the limit when it breaks at a hyphen (seen on `echo "--` in a real
+// command), so any row still too wide is hard-wrapped.
 func wrapPlain(text string, width int) []string {
-	rows := strings.Split(ansi.Wrap(clean(text), width, ""), "\n")
+	var rows []string
+	for _, row := range strings.Split(ansi.Wrap(clean(text), width, ""), "\n") {
+		if lipgloss.Width(row) > width {
+			rows = append(rows, strings.Split(ansi.Hardwrap(row, width, false), "\n")...)
+			continue
+		}
+		rows = append(rows, row)
+	}
 	for i := range rows {
 		rows[i] = strings.TrimRight(rows[i], " ")
 	}
 	return rows
 }
 
-// gitWriteRE matches a command that creates, rewrites or publishes git
-// state: a `git` word followed by add, commit or push as its subcommand.
-var gitWriteRE = regexp.MustCompile(`(^|[^[:alnum:]_])git\s+(add|commit|push)($|[^[:alnum:]_])`)
+// gitWriteRE matches a command that creates, rewrites or publishes git or
+// GitHub state: a `git` word followed by a writing subcommand (the owner's
+// approval list: add, commit, merge, rebase, cherry-pick, revert, reset,
+// clean, filter-branch, tag, push, stash drop, branch/checkout/switch/worktree
+// creating a ref), or a `gh` word followed by pr create/merge/ready, release
+// create, repo sync, or an api call with a writing HTTP method. The rule is
+// literal on the command text: `echo 'git push'` is flagged too.
+var gitWriteRE = regexp.MustCompile(`(^|[^[:alnum:]_])(` +
+	`git\s+(add|commit|merge|rebase|cherry-pick|revert|reset|clean|filter-branch|tag|push|stash\s+drop|branch\s+-[dDm]|checkout\s+(-b|--orphan)|switch\s+-c|worktree\s+add)` +
+	`|gh\s+(pr\s+(create|merge|ready)|release\s+create|repo\s+sync|api\s+.*(-X|--method)\s+(POST|PUT|PATCH|DELETE))` +
+	`)($|[^[:alnum:]_-])`)
+
+// netRE matches a command that obviously reaches the network: a fetching
+// tool, a remote shell or copy, a network probe, a git transfer, a GitHub CLI
+// call, a package manager fetch, a container registry call or a cloud CLI.
+// Literal on the command text like gitWriteRE.
+var netRE = regexp.MustCompile(`(^|[^[:alnum:]_./-])(` +
+	`curl|wget|ssh|scp|sftp|rsync|nc|ncat|telnet|ping|dig|nslookup|traceroute` +
+	`|git\s+(fetch|pull|clone|ls-remote|push)|gh` +
+	`|npm\s+(install|i|ci|add|publish|update)|npx|yarn|pnpm|pip3?\s+install|go\s+(get|mod\s+download)|brew\s+(install|upgrade|update|fetch)` +
+	`|docker\s+(pull|push|login)|aws|gcloud|az|kubectl|helm|apt(-get)?\s+(install|update|upgrade)` +
+	`)($|[^[:alnum:]_-])`)
+
+// Marks reports the header marks of a command: warn for a git/GitHub write,
+// net for a network command that is not already a warning (the warning wins:
+// `git push` is ⚠️, never 🛜). The footer counts them.
+func Marks(cmd string) (warn, net bool) {
+	warn = gitWriteRE.MatchString(cmd)
+	return warn, !warn && netRE.MatchString(cmd)
+}
+
+// Glyph is the two-cell glyph that names an event's type in its header and
+// in the footer tally. Prompts have none.
+func Glyph(e event.Event) string {
+	switch v := e.(type) {
+	case event.Command:
+		if !v.Running && !v.Background && (!v.ExitKnown || v.Exit != 0) {
+			return glyphAlert
+		}
+		return glyphCommand
+	case event.FileChange:
+		if v.Kind == event.Create {
+			return glyphCreate
+		}
+		return glyphEdit
+	case event.Rejected:
+		return glyphAlert
+	case event.Agent:
+		return glyphAgent
+	case event.Skill:
+		return glyphSkill
+	}
+	return ""
+}
 
 func command(c event.Command, width int, loc *time.Location, accent lipgloss.Style) []string {
-	glyph, suffix := glyphCommand, ""
-	warn := gitWriteRE.MatchString(c.Cmd)
-	if warn {
-		glyph = glyphWarn
+	suffix := ""
+	warn, net := Marks(c.Cmd)
+	// The header glyph is the type glyph (⚒️, or ❗ when the command failed),
+	// preceded by the warning mark for a git write, else the network mark.
+	glyph := Glyph(c)
+	switch {
+	case warn:
+		glyph = glyphWarn + " " + glyph
+	case net:
+		glyph = glyphNet + " " + glyph
 	}
 	switch {
 	case c.Running:
@@ -205,9 +279,6 @@ func command(c event.Command, width int, loc *time.Location, accent lipgloss.Sty
 		suffix = "exit ?"
 	case c.Exit != 0:
 		suffix = fmt.Sprintf("exit %d", c.Exit)
-	}
-	if suffix != "" && suffix != "…" && suffix != "bg" && !warn {
-		glyph = glyphAlert
 	}
 	// The command wraps onto continuation rows instead of being cut. The
 	// suffix (exit status, running, background) follows the last row, on its
@@ -290,14 +361,23 @@ func rejected(r event.Rejected, width int, loc *time.Location) string {
 	return header(r.At, loc, glyphAlert, styleCmd.Render(clean(r.Tool+" "+firstLine(r.Subject))), "rejected", width)
 }
 
-// prompt renders the user's message: clock, then the bold first line of the
-// prompt, wrapped onto continuation rows under the bar.
+// prompt renders the user's message in full: clock, then every line of the
+// prompt in bold, each wrapped onto continuation rows; a blank line of the
+// prompt stays a blank row.
 func prompt(p event.Prompt, width int, loc *time.Location) []string {
-	l := lead(p.At, loc) + "  " // no glyph: pad to the body column
-	rows := wrapPlain(firstLine(p.Text), width-indentWidth)
-	lines := []string{l + stylePrompt.Render(rows[0])}
-	for _, r := range rows[1:] {
-		lines = append(lines, plainGutter+stylePrompt.Render(r)) // no bar on continuation rows
+	var lines []string
+	for _, text := range strings.Split(strings.TrimRight(p.Text, "\n"), "\n") {
+		if strings.TrimSpace(text) == "" && len(lines) > 0 {
+			lines = append(lines, "")
+			continue
+		}
+		for _, r := range wrapPlain(text, width-indentWidth) {
+			gutter := plainGutter // no bar on continuation rows
+			if len(lines) == 0 {
+				gutter = lead(p.At, loc) + "  " // no glyph: pad to the body column
+			}
+			lines = append(lines, gutter+stylePrompt.Render(r))
+		}
 	}
 	return lines
 }

@@ -285,3 +285,73 @@ func TestShadeAlternatesOnlyBetweenConsecutiveSameTypeEvents(t *testing.T) {
 		t.Fatalf("raw content lacks the expected bars")
 	}
 }
+
+// The footer is a tally of the work since the last prompt: the share of each
+// action glyph in percent, then plain counts for the warning, network, agent
+// and skill marks; zero entries are omitted. No session id, no follow state.
+// A prompt resets the tally with the log.
+func TestFooterShowsActionRatios(t *testing.T) {
+	m := sized(newModel(), 120, 30)
+	m.revealed, m.held = m.greetingLen(), true
+	if !strings.Contains(m.footer(), "0 actions") {
+		t.Fatalf("empty footer = %q", m.footer())
+	}
+	u0, r0 := bashPair(0, 1)
+	u1, r1 := bashPair(1, 1)
+	m = feed(m, u0, r0, u1, r1)
+	failed := `{"type":"assistant","uuid":"a5","timestamp":"2026-09-10T10:00:00.000Z","message":{"role":"assistant","content":[{"type":"tool_use","id":"b5","name":"Bash","input":{"command":"false"}}]}}`
+	failedRes := `{"type":"user","uuid":"u5","timestamp":"2026-09-10T10:00:01.000Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"b5","is_error":true,"content":"Exit code 1\n"}]},"toolUseResult":"Error: Exit code 1"}`
+	write := `{"type":"assistant","uuid":"a9","timestamp":"2026-09-10T10:00:00.000Z","message":{"role":"assistant","content":[{"type":"tool_use","id":"w9","name":"Write","input":{"file_path":"/tmp/n.txt","content":"x"}}]}}`
+	wres := `{"type":"user","uuid":"u9","timestamp":"2026-09-10T10:00:01.000Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"w9","content":"ok"}]},"toolUseResult":{"type":"create","filePath":"/tmp/n.txt","content":"x","structuredPatch":[]}}`
+	m = feed(m, failed, failedRes, write, wres)
+	f := m.footer()
+	pf := ansi.ReplaceAllString(f, "") // the text, styling removed
+	for _, want := range []string{"⚒️ 50%", "❗ 25%", "🆕 25%"} {
+		if !strings.Contains(pf, want) {
+			t.Errorf("footer %q lacks %q", pf, want)
+		}
+	}
+	for _, no := range []string{"faeeadc5", "following", "paused", "📁", "⚠️", "🛜"} {
+		if strings.Contains(pf, no) {
+			t.Errorf("footer %q must not contain %q", pf, no)
+		}
+	}
+	if !strings.Contains(pf, "  ·  ") {
+		t.Errorf("footer keeps the dot separator: %q", pf)
+	}
+	// marks are plain counts; a running command is counted from its tool_use
+	push := `{"type":"assistant","uuid":"a6","timestamp":"2026-09-10T10:00:00.000Z","message":{"role":"assistant","content":[{"type":"tool_use","id":"b6","name":"Bash","input":{"command":"git push origin main"}}]}}`
+	curl := `{"type":"assistant","uuid":"a7","timestamp":"2026-09-10T10:00:00.000Z","message":{"role":"assistant","content":[{"type":"tool_use","id":"b7","name":"Bash","input":{"command":"curl -s https://example.test"}}]}}`
+	agent := `{"type":"assistant","uuid":"a8","timestamp":"2026-09-10T10:00:00.000Z","message":{"role":"assistant","content":[{"type":"tool_use","id":"g8","name":"Agent","input":{"subagent_type":"general-purpose","description":"Look around","prompt":"x"}}]}}`
+	skill := `{"type":"assistant","uuid":"a10","timestamp":"2026-09-10T10:00:00.000Z","message":{"role":"assistant","content":[{"type":"tool_use","id":"s10","name":"Skill","input":{"skill":"graft"}}]}}`
+	m = feed(m, push, curl, agent, skill)
+	f = m.footer()
+	pf = ansi.ReplaceAllString(f, "")
+	for _, want := range []string{"⚒️ 67%", "❗ 17%", "🆕 17%", "⚠️ 1", "🛜 1", "🤖 1", "ℹ️ 1"} {
+		if !strings.Contains(pf, want) {
+			t.Errorf("footer %q lacks %q", pf, want)
+		}
+	}
+	// the result of the push replaces the running command without double counting
+	pushRes := `{"type":"user","uuid":"u6","timestamp":"2026-09-10T10:00:01.000Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"b6","content":""}]},"toolUseResult":{"stdout":"","stderr":"","interrupted":false}}`
+	m = feed(m, pushRes)
+	if g := m.footer(); g != f {
+		t.Errorf("replacement changed the tally:\n%q\n%q", f, g)
+	}
+	// numbers are white; the warning count red, the agent count blue, the skill count green
+	for _, want := range []string{"\x1b[37m67%", "\x1b[37m17%", "\x1b[31m1\x1b[m", "\x1b[34m1\x1b[m", "\x1b[32m1\x1b[m"} {
+		if !strings.Contains(f, want) {
+			t.Errorf("footer %q lacks %q", f, want)
+		}
+	}
+	// a prompt resets the tally with the log
+	m = feed(m, promptLine(1))
+	if len(m.events) != 1 || !strings.Contains(m.footer(), "0 actions") || strings.Contains(m.footer(), "%") {
+		t.Errorf("after prompt: events=%d footer=%q", len(m.events), m.footer())
+	}
+	// a skipped line still shows
+	m = feed(m, "{garbage")
+	if !strings.Contains(m.footer(), "1 skipped") {
+		t.Errorf("footer = %q", m.footer())
+	}
+}

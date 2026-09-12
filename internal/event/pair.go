@@ -92,6 +92,10 @@ func (p *Pairer) assistant(e entry) []Event {
 			if b.Name == "Bash" {
 				out = append(out, Command{ID: b.ID, At: e.Timestamp, Cmd: inputString(b.Input, "command"), Running: true})
 			}
+		case "Agent":
+			out = append(out, Agent{ID: b.ID, At: e.Timestamp, Description: inputString(b.Input, "description"), Type: inputString(b.Input, "subagent_type")})
+		case "Skill":
+			out = append(out, Skill{ID: b.ID, At: e.Timestamp, Name: inputString(b.Input, "skill"), Args: inputString(b.Input, "args")})
 		}
 	}
 	return out

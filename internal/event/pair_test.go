@@ -259,3 +259,28 @@ func TestPromptWithImagesIsAPrompt(t *testing.T) {
 		t.Fatalf("got %#v", evs[0])
 	}
 }
+
+// A subagent launch (Agent) and a skill invocation (Skill) are shown as soon
+// as the tool_use appears; their results are never awaited.
+func TestAgentAndSkillAreEmittedAtToolUse(t *testing.T) {
+	p := NewPairer()
+	evs := feedAll(t, p, fixture(t, "agent"))
+	if len(evs) != 1 {
+		t.Fatalf("agent: got %d events: %#v", len(evs), evs)
+	}
+	a, ok := evs[0].(Agent)
+	if !ok || a.ID != "toolu_01NygLmg8qEQe4FmmAPSz6LK" || a.Description != "Research Migration Assistant scope" || a.Type != "general-purpose" {
+		t.Fatalf("agent event = %#v", evs[0])
+	}
+	if !a.At.Equal(entryTime(t, fixture(t, "agent")[0])) {
+		t.Fatalf("agent time = %v", a.At)
+	}
+	evs = feedAll(t, p, fixture(t, "skill"))
+	if len(evs) != 1 {
+		t.Fatalf("skill: got %d events: %#v", len(evs), evs)
+	}
+	s, ok := evs[0].(Skill)
+	if !ok || s.ID != "toolu_01183nHomtQtwai9e7ZPX82v" || s.Name != "superpowers:dispatching-parallel-agents" || s.Args != "--fast" {
+		t.Fatalf("skill event = %#v", evs[0])
+	}
+}

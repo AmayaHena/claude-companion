@@ -1,6 +1,6 @@
-// Package event turns raw transcript lines into the four things the viewer
-// shows: prompts, commands, file changes and rejected tool uses. Assistant
-// text and thinking never become events.
+// Package event turns raw transcript lines into the things the viewer shows:
+// prompts, commands, file changes, rejected tool uses, subagent launches and
+// skill invocations. Assistant text and thinking never become events.
 package event
 
 import "time"
@@ -69,6 +69,23 @@ type Rejected struct {
 	Subject string
 }
 
+// Agent is a subagent launch (the Agent tool). It is shown when the tool_use
+// appears; the subagent's own work is out of scope.
+type Agent struct {
+	ID          string
+	At          time.Time
+	Description string
+	Type        string // subagent_type
+}
+
+// Skill is a skill invocation (the Skill tool).
+type Skill struct {
+	ID   string
+	At   time.Time
+	Name string
+	Args string
+}
+
 func (p Prompt) EventID() string     { return p.ID }
 func (p Prompt) When() time.Time     { return p.At }
 func (c Command) EventID() string    { return c.ID }
@@ -77,3 +94,7 @@ func (f FileChange) EventID() string { return f.ID }
 func (f FileChange) When() time.Time { return f.At }
 func (r Rejected) EventID() string   { return r.ID }
 func (r Rejected) When() time.Time   { return r.At }
+func (a Agent) EventID() string      { return a.ID }
+func (a Agent) When() time.Time      { return a.At }
+func (s Skill) EventID() string      { return s.ID }
+func (s Skill) When() time.Time      { return s.At }

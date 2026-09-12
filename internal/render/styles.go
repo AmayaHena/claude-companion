@@ -35,6 +35,8 @@ var (
 	styleLabel   = lipgloss.NewStyle().Foreground(lipgloss.BrightBlack)
 	styleValue   = lipgloss.NewStyle()
 	styleWarning = lipgloss.NewStyle().Foreground(lipgloss.Yellow)
+	styleAgent   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Blue)  // a subagent launch
+	styleSkill   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Green) // a skill invocation
 )
 
 const (
@@ -42,5 +44,8 @@ const (
 	glyphEdit    = "📁"
 	glyphCreate  = "🆕"
 	glyphAlert   = "❗"
-	glyphWarn    = "⚠️" // U+26A0 + VS16, two cells
+	glyphWarn    = "⚠️"           // U+26A0 + VS16, two cells
+	glyphNet     = "🛜"            // U+1F6DC, two cells: the command reaches the network
+	glyphAgent   = "🤖"            // U+1F916, two cells: a subagent launch
+	glyphSkill   = "\u2139\ufe0f" // U+2139 + VS16, two cells: a skill invocation
 )

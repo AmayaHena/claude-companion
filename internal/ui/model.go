@@ -46,10 +46,11 @@ type Model struct {
 	pairer   *event.Pairer
 	events   []event.Event
 	rendered [][]string
-	shades   []int          // per event: 0 dark, 1 light; alternates between consecutive same-type events
-	flat     []string       // greeting + rendered, flattened; rebuilt only when dirty
-	dirty    bool           // flat must be rebuilt (replacement, resize, greeting change)
-	index    map[string]int // event id -> position, for in-place replacement
+	shades   []int           // per event: 0 dark, 1 light; alternates between consecutive same-type events
+	flat     []string        // greeting + rendered, flattened; rebuilt only when dirty
+	dirty    bool            // flat must be rebuilt (replacement, resize, greeting change)
+	index    map[string]int  // event id -> position, for in-place replacement
+	tally    map[string]mark // event id -> glyph and marks, for the footer; reset by a prompt
 	width    int
 	height   int
 	follow   bool
@@ -71,6 +72,7 @@ func New(cfg Config) Model {
 		vp:     viewport.New(viewport.WithWidth(80), viewport.WithHeight(24)),
 		pairer: event.NewPairer(),
 		index:  map[string]int{},
+		tally:  map[string]mark{},
 		width:  80,
 		height: 24,
 		follow: true,
@@ -206,11 +208,13 @@ func (m *Model) ingest(line string) {
 		return
 	}
 	for _, e := range evs {
+		m.count(e)
 		if _, isPrompt := e.(event.Prompt); isPrompt {
 			// A new prompt starts a new screen: everything before it goes,
 			// including the greeting.
 			m.events, m.rendered, m.shades, m.flat = nil, nil, nil, nil
 			m.index = map[string]int{}
+			m.tally = map[string]mark{}
 			m.cleared, m.dirty = true, true
 		}
 		if i, ok := m.index[e.EventID()]; ok {
@@ -279,19 +283,80 @@ func (m Model) greetingLines(force bool) []string {
 var (
 	footerStyle = lipgloss.NewStyle().Foreground(lipgloss.BrightBlack)
 	footerWarn  = lipgloss.NewStyle().Foreground(lipgloss.Yellow)
+	footerNum   = lipgloss.NewStyle().Foreground(lipgloss.White) // the tally numbers, readable against the grey
+	// markStyles colour a mark's count like the event it counts: git writes
+	// red, agents blue, skills green; the network count stays white.
+	markStyles = map[string]lipgloss.Style{
+		"⚠️":           lipgloss.NewStyle().Foreground(lipgloss.Red),
+		"🤖":            lipgloss.NewStyle().Foreground(lipgloss.Blue),
+		"\u2139\ufe0f": lipgloss.NewStyle().Foreground(lipgloss.Green),
+	}
 )
 
-// footer is the single status line under the log.
+// mark is what the footer remembers about one event: its type glyph and,
+// for a command, its warning and network marks.
+type mark struct {
+	glyph     string
+	warn, net bool
+}
+
+// count records an event in the tally, by id so a running command replaced
+// by its result is counted once, at its final state.
+func (m *Model) count(e event.Event) {
+	g := render.Glyph(e)
+	if g == "" { // prompts are not actions
+		return
+	}
+	mk := mark{glyph: g}
+	if c, ok := e.(event.Command); ok {
+		mk.warn, mk.net = render.Marks(c.Cmd)
+	}
+	m.tally[e.EventID()] = mk
+}
+
+// actionGlyphs are the type glyphs shown as a share of all actions, in order.
+var actionGlyphs = []string{"⚒\ufe0f", "📁", "🆕", "❗"}
+
+// footer is the single status line under the log: the share of each action
+// type since the last prompt, then plain counts of the warning, network,
+// agent and skill marks. Zero entries are omitted.
 func (m Model) footer() string {
-	state := "⇣ following"
-	if !m.follow {
-		state = "⇡ paused"
+	counts := map[string]int{}
+	total := 0
+	for _, mk := range m.tally {
+		counts[mk.glyph]++
+		if mk.warn {
+			counts["⚠️"]++
+		}
+		if mk.net {
+			counts["🛜"]++
+		}
 	}
-	parts := []string{m.cfg.SessionID, fmt.Sprintf("%d events", len(m.events)), state}
+	for _, g := range actionGlyphs {
+		total += counts[g]
+	}
+	var parts []string
+	if total == 0 {
+		parts = append(parts, footerStyle.Render("0 actions"))
+	}
+	for _, g := range actionGlyphs {
+		if n := counts[g]; n > 0 {
+			parts = append(parts, g+" "+footerNum.Render(fmt.Sprintf("%d%%", (n*100+total/2)/total)))
+		}
+	}
+	for _, g := range []string{"⚠️", "🛜", "🤖", "\u2139\ufe0f"} {
+		if n := counts[g]; n > 0 {
+			style, ok := markStyles[g]
+			if !ok {
+				style = footerNum
+			}
+			parts = append(parts, g+" "+style.Render(fmt.Sprintf("%d", n)))
+		}
+	}
 	if n := m.pairer.Skipped(); n > 0 {
-		parts = append(parts, fmt.Sprintf("%d skipped", n))
+		parts = append(parts, footerStyle.Render(fmt.Sprintf("%d skipped", n)))
 	}
-	line := footerStyle.Render(strings.Join(parts, "  ·  "))
+	line := strings.Join(parts, footerStyle.Render("  ·  "))
 	if m.lastErr != "" {
 		line += "  " + footerWarn.Render(m.lastErr)
 	} else if m.eof {
