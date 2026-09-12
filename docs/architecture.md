@@ -26,6 +26,9 @@ the beginning. Cancelling the context closes the channel.
 
 - An `assistant` entry with a `tool_use` block for Bash, Edit or Write is
   remembered under its id. Bash is emitted at once as a running `Command`.
+  A `tool_use` for Agent or Skill is emitted at once as an `Agent`
+  (description, subagent type) or a `Skill` (name, args) and never paired:
+  their results are not shown.
 - A `user` entry with the matching `tool_result` finishes the pair. The
   outcome comes from the entry-level `toolUseResult`: stdout and stderr for
   Bash, `structuredPatch` hunks for Edit and Write updates, the whole content
@@ -41,14 +44,16 @@ ignored by construction: there is no event type for it.
 
 ## render
 
-`Event(e, width, loc)` returns one styled line per screen row, never wider
-than `width`, plus one blank line. A header row is the clock and three spaces,
-then the glyph and title; body rows are six spaces, the accent bar and a
-space (8 cells of gutter either way). Each event type has a hue in two
-shades; the model passes the shade, alternating it between consecutive
-events of the same type. A command whose text matches `git add|commit|push`
-is drawn with the warning glyph and the whole command underlined red,
-without syntax colouring. Commands and prompts are
+`Event(e, width, loc, shade)` returns one styled line per screen row, never
+wider than `width`, plus one blank line. A header row is the clock, a space,
+the glyph and title; body rows are six spaces, the accent bar and a space (8
+cells of gutter either way). Each event type has a hue in two shades; the
+model passes the shade, alternating it between consecutive events of the
+same type. `Marks(cmd)` classifies a command: a git or GitHub write gets the
+`⚠️` mark before its glyph and the whole command underlined red without
+syntax colouring; otherwise a network command gets the `🛜` mark. `Glyph(e)`
+is the type glyph of any event and is shared with the footer. Agents and
+skills are a single header row. Commands and every line of a prompt are
 word-wrapped with `ansi.Wrap` and highlighted row by row; output and diff
 lines are truncated. Before measuring, `clean` expands tabs to lipgloss's tab width and
 keeps only what follows a bare carriage return, so measured and rendered

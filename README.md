@@ -12,8 +12,10 @@ Keys: `q`, `esc`, `ctrl+c` quit. `↑ ↓`, `j k`, `pgup pgdn`, `home end` scrol
 The mouse wheel scrolls too: the tool does not capture the mouse, so the
 terminal keeps text selection and translates wheel motion into arrow keys. Newest at the bottom; the view follows the tail until you
 scroll up, and resumes when you scroll back down or press `end`. The footer
-shows the session id, the event count, whether the view is following, and any
-lines that could not be parsed.
+is a tally of the whole session: the share of each action glyph in percent,
+then plain counts of git warnings `⚠️` (red), network commands `🛜`, subagent
+launches `🤖` (blue) and skills `ℹ️` (green), and any lines that could not be
+parsed. A new prompt clears the screen and the tally.
 
 ## What it reads
 
@@ -40,8 +42,11 @@ since your last message.
 | `📁` path | an Edit or a Write to an existing file, followed by its hunks |
 | `🆕` path | a Write that created the file; its content shown as added lines |
 | `❗` `rejected` | a tool use you refused in Claude Code |
-| `⚠️` underlined red | a command containing `git add`, `git commit` or `git push` |
-| `HH:MM   text` | one of your prompts, bold, wrapped |
+| `⚠️ ⚒` underlined red | a command that writes git or GitHub state: `git add/commit/merge/rebase/cherry-pick/revert/reset/clean/tag/push…`, `gh pr create/merge`, `gh release create`, `gh api -X POST…` |
+| `🛜 ⚒` | a command that reaches the network: `curl`, `wget`, `ssh`, `git fetch/pull/clone`, `gh`, `npm install`, `go get`, `brew install`, `docker pull`, `aws`, `kubectl`… |
+| `🤖` description | a subagent launched by Claude, in blue, with its type; the subagent's own work is not shown |
+| `ℹ️` skill | a skill invoked by Claude, in green, with its arguments |
+| `HH:MM   text` | one of your prompts, bold, every line shown and wrapped |
 
 Diff and file lines are syntax-highlighted from the file's extension, with
 the `+` and `-` signs kept bold green and bold red. Highlighting uses chroma's
