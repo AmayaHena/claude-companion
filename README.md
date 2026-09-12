@@ -8,8 +8,9 @@ their diffs, live, as the session goes. It never shows the assistant's answers.
 claude-companion <session-id | unique prefix>
 ```
 
-Keys: `q`, `esc`, `ctrl+c` quit. `↑ ↓`, `j k`, `pgup pgdn`, `home end` and the
-mouse wheel scroll. Newest at the bottom; the view follows the tail until you
+Keys: `q`, `esc`, `ctrl+c` quit. `↑ ↓`, `j k`, `pgup pgdn`, `home end` scroll.
+The mouse wheel scrolls too: the tool does not capture the mouse, so the
+terminal keeps text selection and translates wheel motion into arrow keys. Newest at the bottom; the view follows the tail until you
 scroll up, and resumes when you scroll back down or press `end`. The footer
 shows the session id, the event count, whether the view is following, and any
 lines that could not be parsed.
@@ -22,15 +23,31 @@ when set, the same override Claude Code honours). The file is opened read-only
 and polled every 250 ms. Nothing is written anywhere, nothing touches the
 network. Subagents write to separate files and are not shown.
 
-| line | meaning |
+Each action starts with a header row: a faded clock (`HH:MM`), the glyph and
+the title. Output and diff rows below it carry a coloured bar under the
+glyph: yellow for commands, magenta for file changes, each in a dark and a
+light shade that alternate when two actions of the same type follow each
+other, so the hue names the type and the shade separates neighbours. Long commands and prompts wrap onto
+bar-free continuation rows; output and diff lines are cut at the width. A blank line ends each action. A new prompt clears
+the screen and starts a new block, so what you see is always the work done
+since your last message.
+
+| row | meaning |
 |---|---|
-| `⚒` command | a Bash tool call; output below it, stderr in red |
+| `⚒` command | a Bash tool call, the command syntax-highlighted; output below it, stderr in red |
 | `❗` with `exit N` | the command failed; `exit ?` when the code is unknown |
 | `⚒ … ` | still running (result not in the transcript yet); `bg` = moved to background |
 | `📁` path | an Edit or a Write to an existing file, followed by its hunks |
 | `🆕` path | a Write that created the file; its content shown as added lines |
 | `❗` `rejected` | a tool use you refused in Claude Code |
-| `── HH:MM:SS  text ──` | one of your prompts, as a separator |
+| `⚠️` underlined red | a command containing `git add`, `git commit` or `git push` |
+| `HH:MM   text` | one of your prompts, bold, wrapped |
+
+Diff and file lines are syntax-highlighted from the file's extension, with
+the `+` and `-` signs kept bold green and bold red. Highlighting uses chroma's
+lexers with a fixed map to five palette colours (keywords magenta, strings
+green, numbers cyan, comments dim, function and builtin names blue), so it
+follows your terminal theme like everything else.
 
 Colours are the terminal's own palette, so your Ghostty theme is what you see.
 

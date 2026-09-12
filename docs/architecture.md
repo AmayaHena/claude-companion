@@ -42,15 +42,29 @@ ignored by construction: there is no event type for it.
 ## render
 
 `Event(e, width, loc)` returns one styled line per screen row, never wider
-than `width`. Colours are palette indices, so the terminal theme decides the
-shades. `Greeting(...)` renders the opening block with a reveal count for the
-typed effect.
+than `width`, plus one blank line. A header row is the clock and three spaces,
+then the glyph and title; body rows are six spaces, the accent bar and a
+space (8 cells of gutter either way). Each event type has a hue in two
+shades; the model passes the shade, alternating it between consecutive
+events of the same type. A command whose text matches `git add|commit|push`
+is drawn with the warning glyph and the whole command underlined red,
+without syntax colouring. Commands and prompts are
+word-wrapped with `ansi.Wrap` and highlighted row by row; output and diff
+lines are truncated. Before measuring, `clean` expands tabs to lipgloss's tab width and
+keeps only what follows a bare carriage return, so measured and rendered
+widths agree and the viewport never gains a horizontal scroll. Command text
+and file lines are tokenised with chroma's lexers and coloured through a
+fixed token-to-palette map (`highlight.go`); styled strings are truncated
+with `ansi.Truncate` so escape sequences are never cut. Colours are palette
+indices, so the terminal theme decides the shades. `Greeting(...)` renders
+the opening block with a reveal count for the typed effect.
 
 ## ui
 
 `Model` owns a viewport, the event list, and a parallel list of rendered
 lines. A new event appends; a result for a running command replaces the
-entry with the same id in place. The view follows the tail while the user is
+entry with the same id in place; a new prompt clears everything before it,
+greeting included, so the screen shows the work since the last message. The view follows the tail while the user is
 at the bottom and stops when they scroll up. Startup: the greeting types out
 one character per tick, holds for a beat, then the log appears.
 
