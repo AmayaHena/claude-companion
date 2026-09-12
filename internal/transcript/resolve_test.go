@@ -40,7 +40,7 @@ func TestResolveFullID(t *testing.T) {
 
 func TestResolveUniquePrefix(t *testing.T) {
 	root := projects(t, map[string][]string{
-		"-Users-amaya":     {"faeeadc5-5b2d-4f2b-8b67-03973b1049d2"},
+		"-Users-amaya":         {"faeeadc5-5b2d-4f2b-8b67-03973b1049d2"},
 		"-Users-amaya-example": {"1a932618-8f31-444b-91f6-826342a8cb90"},
 	})
 	got, err := Resolve(root, "faee")
@@ -62,7 +62,7 @@ func TestResolveNoMatch(t *testing.T) {
 
 func TestResolveAmbiguousListsCandidates(t *testing.T) {
 	root := projects(t, map[string][]string{
-		"-Users-amaya":     {"1a000000-0000-0000-0000-000000000001"},
+		"-Users-amaya":         {"1a000000-0000-0000-0000-000000000001"},
 		"-Users-amaya-example": {"1a000000-0000-0000-0000-000000000002"},
 	})
 	_, err := Resolve(root, "1a")

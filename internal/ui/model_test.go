@@ -9,6 +9,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"claude-companion/internal/event"
 	"claude-companion/internal/transcript"
 )
 
@@ -68,7 +69,8 @@ func TestFollowsTailUntilScrolledUp(t *testing.T) {
 	m := sized(newModel(), 80, 10)
 	m.revealed, m.held = len("hello, amaya"), true // greeting complete
 	for i := 0; i < 30; i++ {
-		m = feed(m, promptLine(i))
+		u, r := bashPair(i, 1)
+		m = feed(m, u, r)
 	}
 	if !m.follow || !m.vp.AtBottom() {
 		t.Fatalf("must follow the tail: follow=%v atBottom=%v", m.follow, m.vp.AtBottom())
@@ -78,7 +80,8 @@ func TestFollowsTailUntilScrolledUp(t *testing.T) {
 		t.Fatal("scrolling up must pause following")
 	}
 	before := m.vp.YOffset()
-	m = feed(m, promptLine(31))
+	u, r := bashPair(31, 1)
+	m = feed(m, u, r)
 	if m.vp.YOffset() != before {
 		t.Fatalf("paused view must not move on new lines: %d -> %d", before, m.vp.YOffset())
 	}
@@ -105,7 +108,7 @@ func TestRunningCommandIsReplacedInPlace(t *testing.T) {
 	if len(m.events) != 1 {
 		t.Fatalf("result must replace the running command, got %d events", len(m.events))
 	}
-	if c := content(m); strings.Contains(c, "…") || !strings.Contains(c, "echo hi") || !strings.Contains(c, "          hi") {
+	if c := content(m); strings.Contains(c, "…") || !strings.Contains(c, "echo hi") || !strings.Contains(c, "      ▎ hi") {
 		t.Fatalf("content = %q", c)
 	}
 }
@@ -159,9 +162,10 @@ func TestSkippedAndErrorsReachTheFooter(t *testing.T) {
 func TestLogIsHiddenUntilGreetingIsRevealedAndHeld(t *testing.T) {
 	m := sized(newModel(), 80, 10)
 	for i := 0; i < 30; i++ {
-		m = feed(m, promptLine(i))
+		u, r := bashPair(i, 1)
+		m = feed(m, u, r)
 	}
-	if strings.Contains(content(m), "prompt number") {
+	if strings.Contains(content(m), "cmd 0") {
 		t.Fatalf("events must stay hidden while the greeting is being revealed, content = %q", content(m))
 	}
 	if len(m.events) != 30 {
@@ -183,7 +187,101 @@ func TestLogIsHiddenUntilGreetingIsRevealedAndHeld(t *testing.T) {
 	if cmd != nil {
 		t.Fatal("no further ticks after the hold")
 	}
-	if !strings.Contains(content(m), "prompt number 29") || !m.vp.AtBottom() {
+	if !strings.Contains(content(m), "cmd 29") || !m.vp.AtBottom() {
 		t.Fatalf("after the hold the log must be shown and followed to the tail; atBottom=%v content=%q", m.vp.AtBottom(), content(m))
+	}
+}
+
+func TestPromptClearsEverythingBefore(t *testing.T) {
+	m := sized(newModel(), 120, 20)
+	m.revealed, m.held = m.greetingLen(), true
+	for i := 0; i < 10; i++ {
+		u, r := bashPair(i, 1)
+		m = feed(m, u, r)
+	}
+	if len(m.events) != 10 {
+		t.Fatalf("setup: %d events", len(m.events))
+	}
+	m = feed(m, promptLine(1))
+	if len(m.events) != 1 {
+		t.Fatalf("a prompt must clear the log; got %d events", len(m.events))
+	}
+	if _, ok := m.events[0].(event.Prompt); !ok {
+		t.Fatalf("remaining event must be the prompt, got %#v", m.events[0])
+	}
+	c := content(m)
+	if strings.Contains(c, "cmd 0") || strings.Contains(c, "hello, amaya") || !strings.Contains(c, "prompt number 1") {
+		t.Fatalf("content = %q", c)
+	}
+	// and a running command started after the prompt is still replaced in place
+	u, r := bashPair(99, 1)
+	m = feed(m, u, r)
+	if len(m.events) != 2 || m.events[1].(event.Command).Running {
+		t.Fatalf("events = %#v", m.events)
+	}
+}
+
+func TestGreetingStillRevealsWhenTheLoadContainsPrompts(t *testing.T) {
+	m := sized(newModel(), 80, 20)
+	m = feed(m, promptLine(1)) // arrives during the reveal, clears the (future) log
+	if !m.cleared {
+		t.Fatal("setup: prompt must mark the screen cleared")
+	}
+	for i := 0; i < 3; i++ {
+		next, _ := m.Update(tickMsg(time.Now()))
+		m = next.(Model)
+	}
+	if c := content(m); !strings.HasPrefix(c, "hel") {
+		t.Fatalf("greeting must reveal regardless of an early prompt, content = %q", c)
+	}
+	for m.revealed < m.greetingLen() {
+		next, _ := m.Update(tickMsg(time.Now()))
+		m = next.(Model)
+	}
+	if c := content(m); !strings.Contains(c, "session  faeeadc5") {
+		t.Fatalf("full greeting must show during the hold, content = %q", c)
+	}
+	next, _ := m.Update(holdDoneMsg{})
+	m = next.(Model)
+	if c := content(m); strings.Contains(c, "hello, amaya") || !strings.Contains(c, "prompt number 1") {
+		t.Fatalf("after the hold the cleared log shows without the greeting, content = %q", c)
+	}
+}
+
+func TestTextStaysSelectable(t *testing.T) {
+	if v := newModel().View(); v.MouseMode != tea.MouseModeNone {
+		t.Fatalf("mouse reporting must be off so the terminal keeps text selection, got %v", v.MouseMode)
+	}
+}
+
+func TestShadeAlternatesOnlyBetweenConsecutiveSameTypeEvents(t *testing.T) {
+	m := sized(newModel(), 120, 30)
+	m.revealed, m.held = m.greetingLen(), true
+	u0, r0 := bashPair(0, 1)
+	u1, r1 := bashPair(1, 1)
+	m = feed(m, u0, r0, u1, r1) // two commands in a row: dark then light
+	if m.shades[0] != 0 || m.shades[1] != 1 {
+		t.Fatalf("shades = %v, want [0 1]", m.shades)
+	}
+	// a running command's replacement keeps its shade
+	u2, _ := bashPair(2, 1)
+	m = feed(m, u2)
+	if m.shades[2] != 0 {
+		t.Fatalf("third consecutive command must flip back to dark, got %v", m.shades)
+	}
+	_, r2 := bashPair(2, 1)
+	m = feed(m, r2)
+	if len(m.shades) != 3 || m.shades[2] != 0 {
+		t.Fatalf("replacement must not change the shade: %v", m.shades)
+	}
+	// a different type resets to dark
+	write := `{"type":"assistant","uuid":"a9","timestamp":"2026-09-10T10:00:00.000Z","message":{"role":"assistant","content":[{"type":"tool_use","id":"w9","name":"Write","input":{"file_path":"/tmp/n.txt","content":"x"}}]}}`
+	wres := `{"type":"user","uuid":"u9","timestamp":"2026-09-10T10:00:01.000Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"w9","content":"ok"}]},"toolUseResult":{"type":"create","filePath":"/tmp/n.txt","content":"x","structuredPatch":[]}}`
+	m = feed(m, write, wres)
+	if m.shades[3] != 0 {
+		t.Fatalf("first file change after commands must be dark, got %v", m.shades)
+	}
+	if c := m.vp.GetContent(); !strings.Contains(c, "\x1b[33m▎") || !strings.Contains(c, "\x1b[93m▎") || !strings.Contains(c, "\x1b[35m▎") {
+		t.Fatalf("raw content lacks the expected bars")
 	}
 }

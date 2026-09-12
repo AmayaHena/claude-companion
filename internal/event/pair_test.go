@@ -247,3 +247,15 @@ func TestUnknownToolsAndOtherEntryTypesAreIgnored(t *testing.T) {
 		t.Fatalf("want nothing, got %#v", evs)
 	}
 }
+
+func TestPromptWithImagesIsAPrompt(t *testing.T) {
+	line := `{"type":"user","uuid":"u1","timestamp":"2026-09-13T22:21:55.000Z","message":{"role":"user","content":[{"type":"text","text":"the greeting seems to be broken\n[Image #15]"},{"type":"image","source":{"type":"base64","media_type":"image/jpeg","data":"AAAA"}},{"type":"image","source":{"type":"base64","media_type":"image/jpeg","data":"BBBB"}}]}}`
+	evs, err := NewPairer().Feed(line)
+	if err != nil || len(evs) != 1 {
+		t.Fatalf("got %v %v", evs, err)
+	}
+	p, ok := evs[0].(Prompt)
+	if !ok || !strings.HasPrefix(p.Text, "the greeting seems to be broken") {
+		t.Fatalf("got %#v", evs[0])
+	}
+}

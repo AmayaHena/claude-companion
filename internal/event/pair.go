@@ -248,8 +248,10 @@ func contentText(raw json.RawMessage) string {
 	return sb.String()
 }
 
-// promptText applies the prompt rule: content is a string or text-only
-// blocks, and the trimmed text does not start with '<' (system-injected).
+// promptText applies the prompt rule: content is a string, or text blocks
+// possibly accompanied by image blocks (a prompt with screenshots), and the
+// trimmed text does not start with '<' (system-injected). Any other block
+// type means the entry is not a prompt.
 func promptText(raw json.RawMessage, bl []block) (string, bool) {
 	var text string
 	switch {
@@ -258,10 +260,13 @@ func promptText(raw json.RawMessage, bl []block) (string, bool) {
 	case len(bl) > 0:
 		var sb strings.Builder
 		for _, b := range bl {
-			if b.Type != "text" {
+			switch b.Type {
+			case "text":
+				sb.WriteString(b.Text)
+			case "image":
+			default:
 				return "", false
 			}
-			sb.WriteString(b.Text)
 		}
 		text = sb.String()
 	default:

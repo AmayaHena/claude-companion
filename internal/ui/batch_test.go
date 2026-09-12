@@ -36,7 +36,7 @@ func TestBatchedLinesAreIngestedTogether(t *testing.T) {
 		t.Fatalf("want 5 commands from one batch, got %d", len(m.events))
 	}
 	c := content(m)
-	if !strings.Contains(c, "cmd 0") || !strings.Contains(c, "cmd 4") || !strings.HasSuffix(c, "output line 1 of command 4") {
+	if !strings.Contains(c, "cmd 0") || !strings.Contains(c, "cmd 4") || !strings.HasSuffix(strings.TrimRight(c, "\n"), "output line 1 of command 4") {
 		t.Fatalf("content = %q", tailOf(c, 300))
 	}
 	if !m.vp.AtBottom() {

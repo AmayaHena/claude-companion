@@ -49,14 +49,15 @@ func count(m Model) (cmds, files, rejected, prompts int) {
 
 // TestReplayFixturesThroughTail composes Tail, Pairer, render and the model
 // over every fixture concatenated into one file, then appends more while the
-// tailer is running. Expected counts come from the fixture inventory:
+// tailer is running. Prompts come first because each prompt clears the log:
+// two prompt fixtures (plain, text block) leave 1 prompt on screen, then
 // 3 commands (ok, exit≠0, background), 3 file changes (edit, create, update),
-// 2 rejected (bash, edit), 2 prompts (plain, text block); the other prompt
-// fixtures are system-injected and must be ignored.
+// 2 rejected (bash, edit); the system-injected prompt fixtures are ignored.
 func TestReplayFixturesThroughTail(t *testing.T) {
-	names := []string{"bash_ok", "bash_exit_nonzero", "bash_background", "edit_update", "write_create", "write_update",
-		"bash_rejected", "edit_rejected", "prompt_plain", "prompt_textblock",
-		"prompt_task_notification", "prompt_command_name", "prompt_local_command_stdout", "prompt_meta"}
+	names := []string{"prompt_task_notification", "prompt_command_name", "prompt_local_command_stdout", "prompt_meta",
+		"prompt_plain", "prompt_textblock",
+		"bash_ok", "bash_exit_nonzero", "bash_background", "edit_update", "write_create", "write_update",
+		"bash_rejected", "edit_rejected"}
 	var all []byte
 	for _, n := range names {
 		b, err := os.ReadFile(filepath.Join("..", "event", "testdata", n+".jsonl"))
@@ -75,7 +76,7 @@ func TestReplayFixturesThroughTail(t *testing.T) {
 	m := sized(newModel(), 120, 30)
 	m.revealed, m.held = m.greetingLen(), true
 	m = drain(t, m, ch, 200*time.Millisecond)
-	if c, f, r, p := count(m); c != 3 || f != 3 || r != 2 || p != 2 {
+	if c, f, r, p := count(m); c != 3 || f != 3 || r != 2 || p != 1 {
 		t.Fatalf("got commands=%d files=%d rejected=%d prompts=%d", c, f, r, p)
 	}
 	if !m.follow || !m.vp.AtBottom() {
@@ -96,7 +97,7 @@ func TestReplayFixturesThroughTail(t *testing.T) {
 	f.WriteString(`{"type":"user","uuid":"u9","timestamp":"2026-09-10T10:00:01.000Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t9","content":"LIVE-MARKER\n","is_error":false}]},"toolUseResult":{"stdout":"LIVE-MARKER\n","stderr":"","interrupted":false}}` + "\n")
 	f.Close()
 	m = drain(t, m, ch, 200*time.Millisecond)
-	if c, _, _, _ := count(m); c != 4 || strings.Contains(content(m), "echo LIVE-MARKER  …") || !strings.HasSuffix(content(m), "          LIVE-MARKER") {
+	if c, _, _, _ := count(m); c != 4 || strings.Contains(content(m), "echo LIVE-MARKER  …") || !strings.HasSuffix(strings.TrimRight(content(m), "\n"), "      ▎ LIVE-MARKER") {
 		t.Fatalf("result must replace the running command in place: commands=%d tail=%q", c, tailOf(content(m), 200))
 	}
 	if !m.vp.AtBottom() {

@@ -46,6 +46,7 @@ type Model struct {
 	pairer   *event.Pairer
 	events   []event.Event
 	rendered [][]string
+	shades   []int          // per event: 0 dark, 1 light; alternates between consecutive same-type events
 	flat     []string       // greeting + rendered, flattened; rebuilt only when dirty
 	dirty    bool           // flat must be rebuilt (replacement, resize, greeting change)
 	index    map[string]int // event id -> position, for in-place replacement
@@ -54,6 +55,7 @@ type Model struct {
 	follow   bool
 	revealed int
 	held     bool // the post-greeting hold has elapsed; the log may show
+	cleared  bool // a prompt has cleared the screen; the greeting is gone for good
 	started  time.Time
 	cwd      string
 	lastErr  string
@@ -204,15 +206,27 @@ func (m *Model) ingest(line string) {
 		return
 	}
 	for _, e := range evs {
-		lines := render.Event(e, m.width, m.cfg.Loc)
+		if _, isPrompt := e.(event.Prompt); isPrompt {
+			// A new prompt starts a new screen: everything before it goes,
+			// including the greeting.
+			m.events, m.rendered, m.shades, m.flat = nil, nil, nil, nil
+			m.index = map[string]int{}
+			m.cleared, m.dirty = true, true
+		}
 		if i, ok := m.index[e.EventID()]; ok {
-			m.events[i], m.rendered[i] = e, lines
+			m.events[i], m.rendered[i] = e, render.Event(e, m.width, m.cfg.Loc, m.shades[i])
 			m.dirty = true
 			continue
 		}
+		shade := 0
+		if n := len(m.events); n > 0 && sameType(m.events[n-1], e) {
+			shade = 1 - m.shades[n-1]
+		}
+		lines := render.Event(e, m.width, m.cfg.Loc, shade)
 		m.index[e.EventID()] = len(m.events)
 		m.events = append(m.events, e)
 		m.rendered = append(m.rendered, lines)
+		m.shades = append(m.shades, shade)
 		if !m.dirty {
 			m.flat = append(m.flat, lines...)
 		}
@@ -221,7 +235,7 @@ func (m *Model) ingest(line string) {
 
 func (m *Model) rerenderAll() {
 	for i, e := range m.events {
-		m.rendered[i] = render.Event(e, m.width, m.cfg.Loc)
+		m.rendered[i] = render.Event(e, m.width, m.cfg.Loc, m.shades[i])
 	}
 	m.dirty = true
 	m.refresh()
@@ -232,12 +246,12 @@ func (m *Model) rerenderAll() {
 // than an append happened.
 func (m *Model) refresh() {
 	if !m.held { // the log appears only after the greeting is typed and held for a beat
-		m.vp.SetContentLines(m.greeting())
+		m.vp.SetContentLines(m.greetingLines(true))
 		return
 	}
 	if m.dirty {
 		m.flat = m.flat[:0]
-		m.flat = append(m.flat, m.greeting()...)
+		m.flat = append(m.flat, m.greetingLines(false)...)
 		for _, lines := range m.rendered {
 			m.flat = append(m.flat, lines...)
 		}
@@ -249,7 +263,12 @@ func (m *Model) refresh() {
 	}
 }
 
-func (m Model) greeting() []string {
+// greetingLines renders the greeting. During the reveal and hold it always
+// shows (force); afterwards it is gone once a prompt has cleared the screen.
+func (m Model) greetingLines(force bool) []string {
+	if m.cleared && !force {
+		return nil
+	}
 	lines := render.Greeting(m.cfg.User, m.cfg.SessionID, m.cwd, m.started, m.cfg.Loc, m.revealed)
 	if m.revealed >= m.greetingLen() {
 		lines = append(lines, "")
@@ -284,7 +303,13 @@ func (m Model) footer() string {
 func (m Model) View() tea.View {
 	v := tea.NewView(m.vp.View() + "\n" + m.footer())
 	v.AltScreen = true
-	v.MouseMode = tea.MouseModeCellMotion
+	v.MouseMode = tea.MouseModeNone // no mouse reporting: the terminal keeps text selection; wheel arrives as arrow keys
 	v.WindowTitle = "claude-companion " + m.cfg.SessionID
 	return v
+}
+
+// sameType reports whether two events share a bar hue: commands (and
+// rejected commands) together, file changes (and rejected edits) together.
+func sameType(a, b event.Event) bool {
+	return fmt.Sprintf("%T", a) == fmt.Sprintf("%T", b)
 }
