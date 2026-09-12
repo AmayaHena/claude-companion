@@ -37,8 +37,8 @@ func TestCommandOK(t *testing.T) {
 	got := plain(Event(c, 120, time.UTC, 0))
 	want := []string{
 		"19:57 ⚒️ ls -la",
-		"      ▎ total 0",
-		"      ▎ drwxr-xr-x  2 amaya  staff  64 .",
+		"      ▕▏total 0",
+		"      ▕▏drwxr-xr-x  2 amaya  staff  64 .",
 		"",
 	}
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
@@ -53,7 +53,7 @@ func TestCommandFailedShowsExitAndStderr(t *testing.T) {
 	if got[0] != "19:57 ❗ false  exit 2" {
 		t.Fatalf("header = %q", got[0])
 	}
-	if got[1] != "      ▎ boom" {
+	if got[1] != "      ▕▏boom" {
 		t.Fatalf("stderr line = %q", got[1])
 	}
 }
@@ -99,10 +99,10 @@ func TestEditRendersHunks(t *testing.T) {
 	got := plain(Event(fc, 120, time.UTC, 0))
 	want := []string{
 		"19:57 📁 /Users/amaya/x/docs/investigation.md",
-		"      ▎ @@ -161,3 +161,3 @@",
-		"      ▎  ctx",
-		"      ▎ -old line",
-		"      ▎ +new line",
+		"      ▕▏@@ -161,3 +161,3 @@",
+		"      ▕▏ ctx",
+		"      ▕▏-old line",
+		"      ▕▏+new line",
 		"",
 	}
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
@@ -117,7 +117,7 @@ func TestEditRendersHunks(t *testing.T) {
 func TestCreateRendersContentAsAdded(t *testing.T) {
 	fc := event.FileChange{ID: "t1", At: at, Path: "/tmp/new.yaml", Kind: event.Create, Content: "a: 1\nb: 2\n"}
 	got := plain(Event(fc, 120, time.UTC, 0))
-	want := []string{"19:57 🆕 /tmp/new.yaml", "      ▎ +a: 1", "      ▎ +b: 2", ""}
+	want := []string{"19:57 🆕 /tmp/new.yaml", "      ▕▏+a: 1", "      ▕▏+b: 2", ""}
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
 		t.Fatalf("got %q", got)
 	}
@@ -161,16 +161,16 @@ func TestAccentHuePerTypeAndShade(t *testing.T) {
 		shade int
 		sgr   string
 	}{
-		{"command dark", cmd, 0, "\x1b[33m▎"}, {"command light", cmd, 1, "\x1b[93m▎"},
-		{"file dark", file, 0, "\x1b[35m▎"}, {"file light", file, 1, "\x1b[95m▎"},
+		{"command dark", cmd, 0, "\x1b[33m▕▏"}, {"command light", cmd, 1, "\x1b[93m▕▏"},
+		{"file dark", file, 0, "\x1b[35m▕▏"}, {"file light", file, 1, "\x1b[95m▕▏"},
 	}
 	for _, c := range cases {
 		lines := Event(c.e, 80, time.UTC, c.shade)
-		if strings.Contains(lines[0], "▎") || !strings.Contains(lines[1], c.sgr) {
+		if strings.Contains(lines[0], "▕▏") || !strings.Contains(lines[1], c.sgr) {
 			t.Errorf("%s: header %q body %q", c.name, lines[0], lines[1])
 		}
 	}
-	if p := Event(prompt, 40, time.UTC, 0); strings.Contains(strings.Join(p, ""), "▎") {
+	if p := Event(prompt, 40, time.UTC, 0); strings.Contains(strings.Join(p, ""), "▕▏") {
 		t.Errorf("prompt rows never carry a bar: %q", plain(p))
 	}
 	if !strings.HasPrefix(Event(cmd, 80, time.UTC, 0)[0], "\x1b[1;90m19:57") {
@@ -254,7 +254,7 @@ func TestNetworkCommandsAreMarked(t *testing.T) {
 	}
 	// the body rows still start at the bar column whatever the header prefix
 	rows := Event(event.Command{ID: "t", At: at, Cmd: "curl x", Stdout: "out", ExitKnown: true}, 120, time.UTC, 0)
-	if p := plain(rows); len(p) != 3 || p[1] != "      ▎ out" {
+	if p := plain(rows); len(p) != 3 || p[1] != "      ▕▏out" {
 		t.Errorf("rows = %q", p)
 	}
 	// Marks is what the footer counts
@@ -333,7 +333,7 @@ func TestTabsAndCarriageReturnsNeverWidenALine(t *testing.T) {
 	}
 	// The terminal shows what comes after the last CR of a progress line.
 	got := plain(Event(cases[1], width, time.UTC, 0))
-	if got[1] != "      ▎ ######## 100.0%" {
+	if got[1] != "      ▕▏######## 100.0%" {
 		t.Fatalf("progress line = %q", got[1])
 	}
 }
@@ -345,7 +345,7 @@ func TestDiffLinesAreSyntaxHighlightedWithColouredSigns(t *testing.T) {
 	}}}
 	lines := Event(fc, 120, time.UTC, 0)
 	got := plain(lines)
-	want := []string{"19:57 📁 /tmp/main.go", "      ▎ @@ -1,2 +1,2 @@", "      ▎  x := 1", `      ▎ -old := "a"`, `      ▎ +new := "b" // note`, ""}
+	want := []string{"19:57 📁 /tmp/main.go", "      ▕▏@@ -1,2 +1,2 @@", "      ▕▏ x := 1", `      ▕▏-old := "a"`, `      ▕▏+new := "b" // note`, ""}
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
 		t.Fatalf("text changed:\n%s", strings.Join(got, "\n"))
 	}
@@ -361,7 +361,7 @@ func TestDiffLinesAreSyntaxHighlightedWithColouredSigns(t *testing.T) {
 func TestCreatedGoFileIsHighlighted(t *testing.T) {
 	fc := event.FileChange{ID: "t", At: at, Path: "/tmp/x.go", Kind: event.Create, Content: "package x\n\nfunc F() {}\n"}
 	lines := Event(fc, 80, time.UTC, 0)
-	if got := plain(lines); strings.Join(got, "\n") != "19:57 🆕 /tmp/x.go\n      ▎ +package x\n      ▎ +\n      ▎ +func F() {}\n" {
+	if got := plain(lines); strings.Join(got, "\n") != "19:57 🆕 /tmp/x.go\n      ▕▏+package x\n      ▕▏+\n      ▕▏+func F() {}\n" {
 		t.Fatalf("got %q", got)
 	}
 	if !strings.Contains(lines[1], "\x1b[1;32m+") || !strings.Contains(lines[1], "\x1b[35mpackage") {
@@ -403,4 +403,21 @@ func TestWrappedRowsNeverExceedTheWidth(t *testing.T) {
 		assertWidth(t, Event(event.Command{ID: "t", At: at, Cmd: cmd, ExitKnown: true}, w, time.UTC, 0), w)
 	}
 	assertWidth(t, Event(event.Prompt{ID: "u", At: at, Text: cmd}, 39, time.UTC, 0), 39)
+}
+
+// A marked header (⚠️ or 🛜 before the glyph) is three cells wider, and the
+// command must still wrap instead of being cut on the first row.
+func TestMarkedCommandWrapsInsteadOfTruncating(t *testing.T) {
+	cmd := "curl -s https://api.github.com/repos/AmayaHena/claude-companion | head -3"
+	for _, w := range []int{60, 80} {
+		lines := Event(event.Command{ID: "t", At: at, Cmd: cmd, ExitKnown: true}, w, time.UTC, 0)
+		got := plain(lines)
+		if strings.Contains(got[0], "…") {
+			t.Errorf("w=%d: first row is cut: %q", w, got[0])
+		}
+		if last := got[len(got)-2]; !strings.HasSuffix(last, "head -3") || !strings.HasPrefix(got[0], "19:57 🛜 ⚒️ curl") {
+			t.Errorf("w=%d: rows = %q", w, got)
+		}
+		assertWidth(t, lines, w)
+	}
 }

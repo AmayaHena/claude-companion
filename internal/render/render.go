@@ -88,9 +88,10 @@ func lead(at time.Time, loc *time.Location) string {
 	return stamp(at, loc) + " "
 }
 
-// gutter is the 8-cell start of a body row: blanks under the clock, then the bar.
+// gutter is the 8-cell start of a body row: six blanks under the clock, then
+// the two-cell bar under the glyph.
 func gutter(accent lipgloss.Style) string {
-	return "      " + accent.Render(bar) + " "
+	return "      " + accent.Render(bar)
 }
 
 func firstLine(s string) string {
@@ -280,16 +281,19 @@ func command(c event.Command, width int, loc *time.Location, accent lipgloss.Sty
 	case c.Exit != 0:
 		suffix = fmt.Sprintf("exit %d", c.Exit)
 	}
-	// The command wraps onto continuation rows instead of being cut. The
-	// suffix (exit status, running, background) follows the last row, on its
-	// own row if it would not fit.
+	// The command wraps onto continuation rows instead of being cut. Rows are
+	// wrapped to the room left by the header prefix (clock, marks, glyph),
+	// which is at least as narrow as the 9-cell continuation gutter, so every
+	// row fits. The suffix (exit status, running, background) follows the
+	// last row, on its own row if it would not fit.
+	room := width - lipgloss.Width(lead(c.At, loc)+glyph+" ")
 	var rows []string
 	if warn {
-		for _, r := range wrapPlain(firstLine(c.Cmd), width-len(plainGutter)-1) {
+		for _, r := range wrapPlain(firstLine(c.Cmd), room) {
 			rows = append(rows, styleWarn.Render(r))
 		}
 	} else {
-		rows = wrapRows(bashLexer, firstLine(c.Cmd), width-len(plainGutter)-1)
+		rows = wrapRows(bashLexer, firstLine(c.Cmd), room)
 	}
 	lines := []string{header(c.At, loc, glyph, rows[0], "", width)}
 	for _, r := range rows[1:] {

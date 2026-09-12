@@ -89,8 +89,10 @@ GOSUMDB=sum.golang.org` on this machine: the owner's shell exports
 ## Rendering facts and traps (each one cost a debugging round)
 
 - Row anatomy: header `HH:MM` (5) + space + two-cell glyph (cols 6-7) + space
-  + title from col 9. Body rows: 6 spaces + bar `▎` (col 6, under the glyph)
-  + space + text from col 8. `indentWidth = 8`. Continuation rows of a
+  + title from col 9. Body rows: 6 spaces + bar `▕▏` (U+2595 U+258F, cols
+  6-7: the ink of the two eighth blocks meets on their shared edge, so the
+  line sits in the middle of the glyph above; owner's request) + text from
+  col 8. `indentWidth = 8`. Continuation rows of a
   wrapped command or prompt: 8 spaces, no bar. Every event ends with one
   blank line. A command header may carry one mark before its glyph, with a
   space: `⚠️ ⚒️` (git/GitHub write) or `🛜 ⚒️` (network command); the title
@@ -206,7 +208,7 @@ GOSUMDB=sum.golang.org` on this machine: the owner's shell exports
   skills are counted but are not in the percentage base. No session id, no
   follow state, by owner's request.
 
-## Tests (65 functions, all offline)
+## Tests (66 functions, all offline)
 
 - Fixtures are real two-line cuts; employer content was replaced by neutral
   text with identical JSON shape and identical asserted values. Never commit

@@ -97,7 +97,7 @@ func TestReplayFixturesThroughTail(t *testing.T) {
 	f.WriteString(`{"type":"user","uuid":"u9","timestamp":"2026-09-10T10:00:01.000Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t9","content":"LIVE-MARKER\n","is_error":false}]},"toolUseResult":{"stdout":"LIVE-MARKER\n","stderr":"","interrupted":false}}` + "\n")
 	f.Close()
 	m = drain(t, m, ch, 200*time.Millisecond)
-	if c, _, _, _ := count(m); c != 4 || strings.Contains(content(m), "echo LIVE-MARKER  …") || !strings.HasSuffix(strings.TrimRight(content(m), "\n"), "      ▎ LIVE-MARKER") {
+	if c, _, _, _ := count(m); c != 4 || strings.Contains(content(m), "echo LIVE-MARKER  …") || !strings.HasSuffix(strings.TrimRight(content(m), "\n"), "      ▕▏LIVE-MARKER") {
 		t.Fatalf("result must replace the running command in place: commands=%d tail=%q", c, tailOf(content(m), 200))
 	}
 	if !m.vp.AtBottom() {

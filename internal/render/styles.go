@@ -17,8 +17,10 @@ var (
 // underlined red over the whole command text, no syntax colouring.
 var styleWarn = lipgloss.NewStyle().Underline(true).Foreground(lipgloss.Red)
 
-// bar is U+258E LEFT ONE QUARTER BLOCK, one cell wide.
-const bar = "▎"
+// bar is U+2595 RIGHT ONE EIGHTH BLOCK followed by U+258F LEFT ONE EIGHTH
+// BLOCK: two cells whose ink meets on their shared edge, a quarter-cell line
+// centred under the two-cell glyph above it.
+const bar = "▕▏"
 
 var (
 	styleTime    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.BrightBlack) // bold faded grey

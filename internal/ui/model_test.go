@@ -108,7 +108,7 @@ func TestRunningCommandIsReplacedInPlace(t *testing.T) {
 	if len(m.events) != 1 {
 		t.Fatalf("result must replace the running command, got %d events", len(m.events))
 	}
-	if c := content(m); strings.Contains(c, "…") || !strings.Contains(c, "echo hi") || !strings.Contains(c, "      ▎ hi") {
+	if c := content(m); strings.Contains(c, "…") || !strings.Contains(c, "echo hi") || !strings.Contains(c, "      ▕▏hi") {
 		t.Fatalf("content = %q", c)
 	}
 }
@@ -281,7 +281,7 @@ func TestShadeAlternatesOnlyBetweenConsecutiveSameTypeEvents(t *testing.T) {
 	if m.shades[3] != 0 {
 		t.Fatalf("first file change after commands must be dark, got %v", m.shades)
 	}
-	if c := m.vp.GetContent(); !strings.Contains(c, "\x1b[33m▎") || !strings.Contains(c, "\x1b[93m▎") || !strings.Contains(c, "\x1b[35m▎") {
+	if c := m.vp.GetContent(); !strings.Contains(c, "\x1b[33m▕▏") || !strings.Contains(c, "\x1b[93m▕▏") || !strings.Contains(c, "\x1b[35m▕▏") {
 		t.Fatalf("raw content lacks the expected bars")
 	}
 }

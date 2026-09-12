@@ -46,7 +46,7 @@ ignored by construction: there is no event type for it.
 
 `Event(e, width, loc, shade)` returns one styled line per screen row, never
 wider than `width`, plus one blank line. A header row is the clock, a space,
-the glyph and title; body rows are six spaces, the accent bar and a space (8
+the glyph and title; body rows are six spaces and the two-cell accent bar (8
 cells of gutter either way). Each event type has a hue in two shades; the
 model passes the shade, alternating it between consecutive events of the
 same type. `Marks(cmd)` classifies a command: a git or GitHub write gets the
