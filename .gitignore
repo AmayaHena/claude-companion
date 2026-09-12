@@ -1,2 +1,10 @@
 # local build output
 /claude-companion
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+/graft/
+
+# graft wiring for Claude Code (local to this machine, not shared)
+/.claude/
+/.mcp.json
+/.ignore
