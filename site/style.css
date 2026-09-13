@@ -83,13 +83,8 @@ body::after {
   background-size: 220px 220px;
 }
 
-/* frame: crop marks at the four viewport corners and one edge label */
+/* frame: one edge label (the viewport-corner crop marks were removed at the owner's request) */
 .hud { position: fixed; inset: 0; z-index: 55; pointer-events: none; }
-.hud i { position: absolute; width: 22px; height: 22px; border: 0 solid var(--acid); }
-.hud .tl { top: 10px; left: 10px; border-top-width: 2px; border-left-width: 2px; }
-.hud .tr { top: 10px; right: 10px; border-top-width: 2px; border-right-width: 2px; }
-.hud .bl { bottom: 10px; left: 10px; border-bottom-width: 2px; border-left-width: 2px; }
-.hud .br { bottom: 10px; right: 10px; border-bottom-width: 2px; border-right-width: 2px; }
 .hud .edge {
   position: absolute; right: 14px; top: 50%;
   transform: translateY(-50%) rotate(90deg);
@@ -359,5 +354,4 @@ footer { border-top: 1px solid var(--line); padding-block: 30px 44px; }
   .install { grid-template-columns: minmax(0, 1fr); }
   .legend { grid-template-columns: minmax(0, 1fr); }
   .hero h1 { font-size: 36px; }
-  .hud i { display: none; }
 }
