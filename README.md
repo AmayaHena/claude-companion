@@ -53,7 +53,7 @@ backed by tests in the repository and by commands anyone can run:
 | claim | proof in the repo | rerun it yourself |
 |---|---|---|
 | no network | no `net`, `net/http` or TLS package in the binary's dependency graph | `go list -deps ./cmd/claude-companion \| grep -E '^(net\|net/http\|crypto/tls)$'` prints nothing |
-| read-only | four filesystem calls in product code, all reads; `TEA_TRACE`/`TEA_DEBUG` unset at startup | `grep -rn 'os\.\(Create\|WriteFile\|OpenFile\|Mkdir\|Remove\)' cmd internal` prints nothing; run it and `lsof -p <pid>` shows the transcript opened `r` |
+| read-only | four filesystem calls in product code, all reads; `TEA_TRACE`/`TEA_DEBUG` unset at startup | `grep -rn --exclude='*_test.go' 'os\.\(Create\|WriteFile\|OpenFile\|Mkdir\|Remove\)' cmd internal` prints nothing (tests write only in their temp dirs); run it and `lsof -p <pid>` shows the transcript opened `r` |
 | deterministic | one wall-clock read (`time.Now` in `main`, for the picker's "ago"); footer order is a fixed list | `grep -rn 'time.Now\|math/rand' cmd internal` shows that single line |
 | untrusted input is inert | `TestTerminalControlsNeverReachTheScreen`, `TestTitleAndErrorAreSanitised`, `TestPickerSanitisesTranscriptText`, `TestCopySanitisesAndCountsLines`, `TestMarksAreDecidedOnSanitisedText` | `go test ./... -run 'Sanitis\|Controls\|Marks'` |
 | bounded work | `TestHugeBodiesAreCapped`, `TestTailDropsAnEndlessLine` | `go test ./... -run 'Capped\|Endless'` |
