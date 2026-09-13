@@ -9,6 +9,14 @@ claude-companion <session-id | unique prefix>
 ```
 
 Keys: `q`, `esc`, `ctrl+c` quit. `↑ ↓`, `j k`, `pgup pgdn`, `home end` scroll.
+`c` copies the latest command to the clipboard; `tab` and `shift+tab` move the
+copy target to older commands, the footer names it. The copy goes through the
+terminal's OSC 52 support; in Ghostty, `clipboard-write = allow` avoids a
+confirmation on each copy.
+
+Run it without an argument to pick one of the ten most recent sessions across
+all projects: each row shows the id, the time since the last write, the
+project folder and the first prompt. `↑ ↓` move, `enter` opens, `q` quits.
 The mouse wheel scrolls too: the tool does not capture the mouse, so the
 terminal keeps text selection and translates wheel motion into arrow keys. Newest at the bottom; the view follows the tail until you
 scroll up, and resumes when you scroll back down or press `end`. The footer
@@ -27,9 +35,8 @@ network. Subagents write to separate files and are not shown.
 
 Each action starts with a header row: a faded clock (`HH:MM`), the glyph and
 the title. Output and diff rows below it carry a coloured bar under the
-glyph: yellow for commands, magenta for file changes, each in a dark and a
-light shade that alternate when two actions of the same type follow each
-other, so the hue names the type and the shade separates neighbours. Long commands and prompts wrap onto
+glyph, one hue per action: yellow for a command, red for a failed one,
+magenta for an edit, cyan for a created file. Long commands and prompts wrap onto
 bar-free continuation rows; output and diff lines are cut at the width. A blank line ends each action. A new prompt clears
 the screen and starts a new block, so what you see is always the work done
 since your last message.

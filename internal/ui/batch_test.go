@@ -24,7 +24,6 @@ func bashPair(i, outLines int) (string, string) {
 
 func TestBatchedLinesAreIngestedTogether(t *testing.T) {
 	m := sized(newModel(), 120, 20)
-	m.revealed, m.held = m.greetingLen(), true
 	var batch linesMsg
 	for i := 0; i < 5; i++ {
 		u, r := bashPair(i, 2)
@@ -46,7 +45,6 @@ func TestBatchedLinesAreIngestedTogether(t *testing.T) {
 
 func TestBatchWithErrorLineKeepsGoing(t *testing.T) {
 	m := sized(newModel(), 120, 20)
-	m.revealed, m.held = m.greetingLen(), true
 	u, r := bashPair(1, 1)
 	next, _ := m.Update(linesMsg{{Text: u}, {Err: fmt.Errorf("boom")}, {Text: r}})
 	m = next.(Model)
@@ -68,7 +66,6 @@ func BenchmarkIngest(b *testing.B) {
 	}
 	for b.Loop() {
 		m := sized(newModel(), 160, 50)
-		m.revealed, m.held = m.greetingLen(), true
 		for _, l := range lines {
 			next, _ := m.Update(lineMsg{Text: l})
 			m = next.(Model)
@@ -90,7 +87,6 @@ func BenchmarkIngestBatched(b *testing.B) {
 	}
 	for b.Loop() {
 		m := sized(newModel(), 160, 50)
-		m.revealed, m.held = m.greetingLen(), true
 		for start := 0; start < len(lines); start += maxBatch {
 			end := min(start+maxBatch, len(lines))
 			batch := make(linesMsg, 0, end-start)

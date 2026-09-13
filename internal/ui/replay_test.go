@@ -74,7 +74,6 @@ func TestReplayFixturesThroughTail(t *testing.T) {
 	defer cancel()
 	ch := transcript.Tail(ctx, path, 10*time.Millisecond)
 	m := sized(newModel(), 120, 30)
-	m.revealed, m.held = m.greetingLen(), true
 	m = drain(t, m, ch, 200*time.Millisecond)
 	if c, f, r, p := count(m); c != 3 || f != 3 || r != 2 || p != 1 {
 		t.Fatalf("got commands=%d files=%d rejected=%d prompts=%d", c, f, r, p)
@@ -127,7 +126,6 @@ func TestReplayRealSession(t *testing.T) {
 	defer cancel()
 	ch := transcript.Tail(ctx, path, 10*time.Millisecond)
 	m := sized(newModel(), 160, 50)
-	m.revealed, m.held = m.greetingLen(), true
 	start := time.Now()
 	m = drain(t, m, ch, 500*time.Millisecond)
 	c, f, r, p := count(m)

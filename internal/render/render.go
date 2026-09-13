@@ -28,19 +28,16 @@ const plainGutter = "        "
 const ellipsis = "…"
 
 // Event renders one event as lines no wider than width cells, followed by
-// one blank line. shade selects the dark (0) or light (1) variant of the
-// type's accent; the caller alternates it between consecutive events of the
-// same type.
-func Event(e event.Event, width int, loc *time.Location, shade int) []string {
-	shade &= 1
+// one blank line.
+func Event(e event.Event, width int, loc *time.Location) []string {
 	var lines []string
 	switch v := e.(type) {
 	case event.Prompt:
 		lines = prompt(v, width, loc)
 	case event.Command:
-		lines = command(v, width, loc, accentCommand[shade])
+		lines = command(v, width, loc)
 	case event.FileChange:
-		lines = fileChange(v, width, loc, accentFile[shade])
+		lines = fileChange(v, width, loc)
 	case event.Rejected:
 		lines = []string{rejected(v, width, loc)}
 	case event.Agent:
@@ -55,27 +52,6 @@ func Event(e event.Event, width int, loc *time.Location, shade int) []string {
 		return nil
 	}
 	return append(lines, "")
-}
-
-// Greeting renders the opening block. revealed is how many runes of the
-// "hello, <user>" line to show; the rest of the block appears only once the
-// line is complete.
-func Greeting(user, session, cwd string, started time.Time, loc *time.Location, revealed int) []string {
-	hello := "hello, " + user
-	r := []rune(hello)
-	if revealed < len(r) {
-		if revealed < 0 {
-			revealed = 0
-		}
-		return []string{styleHello.Render(string(r[:revealed]))}
-	}
-	return []string{
-		styleHello.Render(hello),
-		"",
-		styleLabel.Render("session  ") + styleValue.Render(session),
-		styleLabel.Render("cwd      ") + styleValue.Render(cwd),
-		styleLabel.Render("started  ") + styleValue.Render(started.In(loc).Format("2006-01-02 15:04:05")),
-	}
 }
 
 func stamp(at time.Time, loc *time.Location) string {
@@ -259,12 +235,17 @@ func Glyph(e event.Event) string {
 	return ""
 }
 
-func command(c event.Command, width int, loc *time.Location, accent lipgloss.Style) []string {
+func command(c event.Command, width int, loc *time.Location) []string {
 	suffix := ""
 	warn, net := Marks(c.Cmd)
 	// The header glyph is the type glyph (⚒️, or ❗ when the command failed),
 	// preceded by the warning mark for a git write, else the network mark.
+	// The body bar takes the hue of that type glyph.
 	glyph := Glyph(c)
+	accent := accentCommand
+	if glyph == glyphAlert {
+		accent = accentFail
+	}
 	switch {
 	case warn:
 		glyph = glyphWarn + " " + glyph
@@ -315,10 +296,10 @@ func command(c event.Command, width int, loc *time.Location, accent lipgloss.Sty
 	return lines
 }
 
-func fileChange(fc event.FileChange, width int, loc *time.Location, accent lipgloss.Style) []string {
-	glyph := glyphEdit
+func fileChange(fc event.FileChange, width int, loc *time.Location) []string {
+	glyph, accent := glyphEdit, accentEdit
 	if fc.Kind == event.Create {
-		glyph = glyphCreate
+		glyph, accent = glyphCreate, accentCreate
 	}
 	lines := []string{header(fc.At, loc, glyph, stylePath.Render(clean(fc.Path)), "", width)}
 	room := width - indentWidth

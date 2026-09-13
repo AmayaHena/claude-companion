@@ -1,7 +1,9 @@
 // claude-companion shows what a Claude Code session does: the commands it
 // runs and the files it changes, live, without the assistant's prose.
 //
-// Usage: claude-companion <session-id | unique prefix>
+// Usage: claude-companion [session-id | unique prefix]
+//
+// Without an argument a picker lists the most recent sessions.
 //
 // Transcripts are read from $CLAUDE_CONFIG_DIR/projects when that variable is
 // set (the same override Claude Code honours), otherwise ~/.claude/projects.
@@ -12,7 +14,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/user"
 	"path/filepath"
 	"strings"
 	"time"
@@ -24,8 +25,9 @@ import (
 )
 
 func main() {
-	if len(os.Args) != 2 || os.Args[1] == "-h" || os.Args[1] == "--help" {
-		fmt.Fprintln(os.Stderr, "usage: claude-companion <session-id | unique prefix>")
+	if len(os.Args) > 2 || (len(os.Args) == 2 && (os.Args[1] == "-h" || os.Args[1] == "--help")) {
+		fmt.Fprintln(os.Stderr, "usage: claude-companion [session-id | unique prefix]")
+		fmt.Fprintln(os.Stderr, "without an argument, pick one of the most recent sessions")
 		fmt.Fprintln(os.Stderr, "reads $CLAUDE_CONFIG_DIR/projects when set, else ~/.claude/projects")
 		os.Exit(2)
 	}
@@ -38,15 +40,21 @@ func main() {
 		}
 		configDir = filepath.Join(home, ".claude")
 	}
-	path, err := transcript.Resolve(filepath.Join(configDir, "projects"), os.Args[1])
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "claude-companion:", err)
-		os.Exit(1)
+	projects := filepath.Join(configDir, "projects")
+	var path string
+	if len(os.Args) == 2 {
+		p, err := transcript.Resolve(projects, os.Args[1])
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "claude-companion:", err)
+			os.Exit(1)
+		}
+		path = p
+	} else {
+		path = pick(projects)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	cfg := ui.Config{
-		User:      userName(),
 		SessionID: strings.TrimSuffix(filepath.Base(path), ".jsonl"),
 		Path:      path,
 		Lines:     transcript.Tail(ctx, path, 100*time.Millisecond),
@@ -58,9 +66,29 @@ func main() {
 	}
 }
 
-func userName() string {
-	if u, err := user.Current(); err == nil && u.Username != "" {
-		return u.Username
+// recentLimit is how many sessions the picker lists.
+const recentLimit = 10
+
+// pick runs the session picker and returns the chosen transcript path; it
+// exits the process when there is nothing to pick or the user quits.
+func pick(projects string) string {
+	sessions, err := transcript.Recent(projects, recentLimit)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "claude-companion:", err)
+		os.Exit(1)
 	}
-	return os.Getenv("USER")
+	if len(sessions) == 0 {
+		fmt.Fprintln(os.Stderr, "claude-companion: no sessions under", projects)
+		os.Exit(1)
+	}
+	final, err := tea.NewProgram(ui.NewPicker(sessions, time.Now())).Run()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "claude-companion:", err)
+		os.Exit(1)
+	}
+	chosen := final.(ui.Picker).Chosen
+	if chosen == nil {
+		os.Exit(0)
+	}
+	return chosen.Path
 }

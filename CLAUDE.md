@@ -6,12 +6,11 @@ something was not verified it says so. Re-verify before relying on a number.
 
 ## What this is
 
-A read-only Bubble Tea terminal viewer. `claude-companion <session-id | unique
-prefix>` tails one Claude Code session transcript and shows what Claude did:
+A read-only Bubble Tea terminal viewer. `claude-companion [session-id | unique
+prefix]` tails one Claude Code session transcript and shows what Claude did:
 commands with output, file edits and creations as diffs, refused tool uses,
 and the user's prompts. Assistant prose and thinking are never shown. No
-network, no writes, deterministic (no randomness anywhere; the greeting
-animation is a fixed timer).
+network, no writes, deterministic (no randomness anywhere, no timers).
 
 Owner: Amaya (`amaya` on this Mac). Repo: `github.com/AmayaHena/claude-companion`,
 remote alias `github-personal` (the plain `github.com` SSH host maps to a work
@@ -20,11 +19,12 @@ key; see "Git rules").
 ## Layout (Go 1.27, module `claude-companion`)
 
 ```
-cmd/claude-companion/main.go     args, CLAUDE_CONFIG_DIR, Resolve, Tail(100ms), run program
-internal/transcript              Resolve(projectsDir, arg) · Tail(ctx, path, poll) <-chan Line
+cmd/claude-companion/main.go     args, CLAUDE_CONFIG_DIR, Resolve or picker (no arg), Tail(100ms), run program
+internal/transcript              Resolve(projectsDir, arg) · Recent(projectsDir, n) []Session · Tail(ctx, path, poll) <-chan Line
 internal/event                   Pairer.Feed(line) []Event · types Prompt/Command/FileChange/Rejected/Agent/Skill/Hunk
-internal/render                  Event(e, width, loc, shade) []string · Greeting(...) · highlight.go · styles.go
-internal/ui                      Model (Bubble Tea v2) · batching · greeting · clear-on-prompt · shades
+internal/render                  Event(e, width, loc) []string · highlight.go · styles.go
+internal/ui                      Model (Bubble Tea v2) · batching · clear-on-prompt · footer tally · copy keys
+internal/ui/picker.go            Picker: the no-argument session list (own tea.Program, run before the viewer)
 internal/event/testdata/*.jsonl  16 fixtures cut from real transcripts (14 two-line, agent/skill one-line), payloads neutralised
 docs/superpowers/specs, plans    original design and plan (the layout section there predates the
                                  current row anatomy; this file is authoritative)
@@ -58,6 +58,12 @@ GOSUMDB=sum.golang.org` on this machine: the owner's shell exports
   and requires exactly one basename match.
 - Subagents write to `<slug>/<session-id>/subagents/*.jsonl`; every entry in a
   main file has `isSidechain:false`. Main-session-only scope is free.
+- Current files (checked on the 12 most recent, 2026-09-13) open with 3 to 8
+  header entries that carry neither `timestamp` nor `cwd`: types seen are
+  `last-prompt`, `mode`, `permission-mode`, `bridge-session`, `atis-latch`,
+  `ai-title`, `agent-name`, `file-history-snapshot`, `attachment`. The first
+  `cwd` is on line 3 to 8. Anything reading "the first entry" must instead
+  keep the first non-empty value (`ui.Model.ingest`, `transcript.head`).
 - A session moved with `/cd` writes a `relocated` entry and its file moves to
   the new slug directory. `Resolve` handles this only at startup (it searches
   all slugs); a relocation mid-run is out of scope.
@@ -107,11 +113,12 @@ GOSUMDB=sum.golang.org` on this machine: the owner's shell exports
   draws it as two cells, which swallowed the following space; with VS16 the
   measure is 2 and matches. Do not add glyphs without checking
   `ansi.StringWidth` against the terminal.
-- Colours: palette indices only (`lipgloss.Yellow`, `BrightYellow`, ...),
-  never hex, so the terminal theme decides. Command bar yellow/bright yellow,
-  file bar magenta/bright magenta; the `shade` argument (0/1) picks the
-  variant and `ui.Model` alternates it between consecutive events of the
-  same Go type (`sameType` compares `%T`). Prompts have no bar.
+- Colours: palette indices only (`lipgloss.Yellow`, `Red`, ...), never hex,
+  so the terminal theme decides. One bar hue per action type, matching the
+  header glyph: `⚒️` yellow, `❗` red, `📁` magenta, `🆕` cyan (blue and
+  green belong to agent and skill titles). No dark/light alternation any
+  more (removed 2026-09-13 with the `shade` argument, `Model.shades` and
+  `sameType`). Prompts have no bar.
 - Clock style: `Bold(true).Foreground(BrightBlack)` → `ESC[1;90m`.
 - Width discipline: the viewport (`bubbles/v2/viewport`, `SoftWrap=false`)
   enables horizontal scrolling if ANY line measures wider than the width by
@@ -172,23 +179,38 @@ GOSUMDB=sum.golang.org` on this machine: the owner's shell exports
 
 ## UI model facts
 
-- `Init` batches `waitLines` (one blocking read, then drain up to
-  `maxBatch = 256` queued lines into one `linesMsg`) and the greeting tick.
+- `Init` is `waitLines` (one blocking read, then drain up to
+  `maxBatch = 256` queued lines into one `linesMsg`).
   Per-line refresh was O(n) inside the viewport (`SetContentLines` measures
   every line); batching took 2,000 lines from 11.9 s to 0.10 s
   (`BenchmarkIngest` vs `BenchmarkIngestBatched`).
-- Greeting: `hello, <user>` typed at `tickEvery = 40ms` per rune, then the
-  block (session, cwd, started) held `holdAfter = 700ms`, then the log. The
-  log is ingested during the reveal but hidden (`held == false`); the
-  greeting shows during reveal/hold even if a prompt already set `cleared`
-  (`greetingLines(force)`).
-- A `Prompt` event clears `events`, `rendered`, `shades`, `flat`, `index`,
-  sets `cleared` (greeting gone for good) and starts a new block. Design
-  intent: the screen shows the work since the user's last message.
+- No greeting: the log shows from the first line (the typed `hello, <user>`
+  screen, its hold timer, and the cwd/started block were removed on
+  2026-09-13 at the owner's request; the window title carries the session
+  id, the picker shows the project folder).
+- A `Prompt` event clears `events`, `rendered`, `flat`, `index`, `tally` and
+  starts a new block. Design intent: the screen shows the work since the
+  user's last message.
 - A running `Command` (tool_use seen, result pending) is emitted immediately
-  and replaced in place by id when the result lands; its shade is kept.
+  and replaced in place by id when the result lands.
 - `follow` is true while the viewport is at the bottom; any upward scroll
   pauses following; `end` resumes; `home` goes top and pauses.
+- Copy keys: `c` sends the targeted command's full text to the clipboard via
+  `tea.SetClipboard` (OSC 52; Bubble Tea writes `ansi.SetSystemClipboard`).
+  The target is the latest command of the current block; `tab` moves it one
+  command older, `shift+tab` back; the footer shows `copy → <first line…>`
+  while the target is not the latest, `copied` after a copy, `nothing to
+  copy` when the block has no command. Any new event resets the target.
+  Ghostty: the owner's config sets `clipboard-write = ask` (default `allow`),
+  so each copy raises a Ghostty confirmation until that line changes.
+- Picker (`claude-companion` with no argument): `transcript.Recent` lists
+  the `*/*.jsonl` files directly under the project folders (subagent files
+  are one level deeper and never match), newest mtime first, `recentLimit =
+  10`; for each it reads at most `headLines = 200` lines for the first
+  entry's cwd and the first prompt's first line. `ui.Picker` is its own
+  program (`↑↓ j k` move, `enter` opens, `q` quits); `main.pick` then starts
+  the viewer on the chosen path. A missing projects dir is an error, an
+  empty one prints `no sessions under …`.
 - `View()`: `AltScreen`, `MouseMode = MouseModeNone` (mouse reporting off so
   the terminal keeps text selection), window title `claude-companion <id>`.
   UNVERIFIED: whether Ghostty converts wheel motion into arrow keys on the
@@ -208,7 +230,7 @@ GOSUMDB=sum.golang.org` on this machine: the owner's shell exports
   skills are counted but are not in the percentage base. No session id, no
   follow state, by owner's request.
 
-## Tests (66 functions, all offline)
+## Tests (68 functions, all offline)
 
 - Fixtures are real two-line cuts; employer content was replaced by neutral
   text with identical JSON shape and identical asserted values. Never commit
@@ -255,9 +277,6 @@ command OUTPUT (only the command line and file contents are coloured).
 
 ## Known rough edges
 
-- `ui.sameType` uses `fmt.Sprintf("%T")`; fine at this scale.
 - Highlighting a hunk tokenises `codes` joined by `\n`; a lexer that swallows
   a newline would misalign rows — guarded by padding/truncating to the input
   length in `highlightLines`, not by a test.
-- The greeting shows `cwd` from the first transcript entry; a `/cd` later in
-  the session is not reflected.

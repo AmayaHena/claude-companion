@@ -1,5 +1,5 @@
-// Package ui is the Bubble Tea model: a greeting, then a scrolling log of
-// events that follows the transcript tail until the user scrolls up.
+// Package ui is the Bubble Tea model: a scrolling log of events that
+// follows the transcript tail until the user scrolls up.
 package ui
 
 import (
@@ -10,6 +10,7 @@ import (
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	xansi "github.com/charmbracelet/x/ansi" // the test package already names a regexp ansi
 
 	"claude-companion/internal/event"
 	"claude-companion/internal/render"
@@ -18,7 +19,6 @@ import (
 
 // Config is everything the model needs; nothing is read from the environment.
 type Config struct {
-	User      string
 	SessionID string
 	Path      string
 	Lines     <-chan transcript.Line
@@ -27,16 +27,9 @@ type Config struct {
 
 // Messages the model receives besides Bubble Tea's own.
 type (
-	lineMsg     transcript.Line   // one transcript line, or a read error
-	linesMsg    []transcript.Line // a batch of lines drained from the tailer at once
-	tickMsg     time.Time         // reveal one more greeting character
-	eofMsg      struct{}          // the tailer closed its channel
-	holdDoneMsg struct{}          // the post-greeting hold elapsed; show the log
-)
-
-const (
-	tickEvery = 40 * time.Millisecond  // one greeting character per tick
-	holdAfter = 700 * time.Millisecond // the full greeting block stays alone this long
+	lineMsg  transcript.Line   // one transcript line, or a read error
+	linesMsg []transcript.Line // a batch of lines drained from the tailer at once
+	eofMsg   struct{}          // the tailer closed its channel
 )
 
 // Model is the whole UI state. Fields are unexported; tests live in-package.
@@ -46,21 +39,20 @@ type Model struct {
 	pairer   *event.Pairer
 	events   []event.Event
 	rendered [][]string
-	shades   []int           // per event: 0 dark, 1 light; alternates between consecutive same-type events
-	flat     []string        // greeting + rendered, flattened; rebuilt only when dirty
-	dirty    bool            // flat must be rebuilt (replacement, resize, greeting change)
+	flat     []string        // rendered, flattened; rebuilt only when dirty
+	dirty    bool            // flat must be rebuilt (replacement, resize, clear)
 	index    map[string]int  // event id -> position, for in-place replacement
 	tally    map[string]mark // event id -> glyph and marks, for the footer; reset by a prompt
 	width    int
 	height   int
 	follow   bool
-	revealed int
-	held     bool // the post-greeting hold has elapsed; the log may show
-	cleared  bool // a prompt has cleared the screen; the greeting is gone for good
-	started  time.Time
-	cwd      string
 	lastErr  string
 	eof      bool
+	// copy target: 0 is the latest command, k the k-th before it; copied and
+	// notice are footer feedback, cleared by the next new event.
+	copyBack int
+	copied   bool
+	notice   string
 }
 
 func New(cfg Config) Model {
@@ -80,7 +72,7 @@ func New(cfg Config) Model {
 }
 
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(waitLines(m.cfg.Lines), tea.Tick(tickEvery, func(t time.Time) tea.Msg { return tickMsg(t) }))
+	return waitLines(m.cfg.Lines)
 }
 
 // maxBatch bounds how many lines one message may carry, so a huge backlog is
@@ -114,8 +106,6 @@ func waitLines(ch <-chan transcript.Line) tea.Cmd {
 	}
 }
 
-func (m Model) greetingLen() int { return len([]rune("hello, " + m.cfg.User)) }
-
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -123,24 +113,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.vp.SetWidth(msg.Width)
 		m.vp.SetHeight(max(msg.Height-1, 1)) // one line for the footer
 		m.rerenderAll()
-		return m, nil
-
-	case tickMsg:
-		if m.revealed >= m.greetingLen() {
-			return m, nil
-		}
-		m.revealed++
-		m.dirty = true
-		m.refresh()
-		if m.revealed >= m.greetingLen() {
-			return m, tea.Tick(holdAfter, func(time.Time) tea.Msg { return holdDoneMsg{} })
-		}
-		return m, tea.Tick(tickEvery, func(t time.Time) tea.Msg { return tickMsg(t) })
-
-	case holdDoneMsg:
-		m.held = true
-		m.dirty = true
-		m.refresh()
 		return m, nil
 
 	case lineMsg:
@@ -172,6 +144,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.vp.GotoBottom()
 			m.follow = true
 			return m, nil
+		case "c":
+			return m.copyTarget()
+		case "tab":
+			if cmds := m.commands(); m.copyBack < len(cmds)-1 {
+				m.copyBack++
+			}
+			m.copied = false
+			return m, nil
+		case "shift+tab":
+			if m.copyBack > 0 {
+				m.copyBack--
+			}
+			m.copied = false
+			return m, nil
 		}
 		var cmd tea.Cmd
 		m.vp, cmd = m.vp.Update(msg)
@@ -199,10 +185,6 @@ func (m *Model) take(l transcript.Line) {
 // ingest feeds one transcript line and folds the resulting events into the
 // log, replacing a running command in place when its result arrives.
 func (m *Model) ingest(line string) {
-	if m.started.IsZero() {
-		m.started, m.cwd = firstEntryInfo(line)
-		m.dirty = true // the greeting block changed
-	}
 	evs, err := m.pairer.Feed(line)
 	if err != nil {
 		return
@@ -210,27 +192,22 @@ func (m *Model) ingest(line string) {
 	for _, e := range evs {
 		m.count(e)
 		if _, isPrompt := e.(event.Prompt); isPrompt {
-			// A new prompt starts a new screen: everything before it goes,
-			// including the greeting.
-			m.events, m.rendered, m.shades, m.flat = nil, nil, nil, nil
+			// A new prompt starts a new screen: everything before it goes.
+			m.events, m.rendered, m.flat = nil, nil, nil
 			m.index = map[string]int{}
 			m.tally = map[string]mark{}
-			m.cleared, m.dirty = true, true
+			m.dirty = true
 		}
 		if i, ok := m.index[e.EventID()]; ok {
-			m.events[i], m.rendered[i] = e, render.Event(e, m.width, m.cfg.Loc, m.shades[i])
+			m.events[i], m.rendered[i] = e, render.Event(e, m.width, m.cfg.Loc)
 			m.dirty = true
 			continue
 		}
-		shade := 0
-		if n := len(m.events); n > 0 && sameType(m.events[n-1], e) {
-			shade = 1 - m.shades[n-1]
-		}
-		lines := render.Event(e, m.width, m.cfg.Loc, shade)
+		lines := render.Event(e, m.width, m.cfg.Loc)
+		m.copyBack, m.copied, m.notice = 0, false, "" // a new event retargets the copy key
 		m.index[e.EventID()] = len(m.events)
 		m.events = append(m.events, e)
 		m.rendered = append(m.rendered, lines)
-		m.shades = append(m.shades, shade)
 		if !m.dirty {
 			m.flat = append(m.flat, lines...)
 		}
@@ -239,7 +216,7 @@ func (m *Model) ingest(line string) {
 
 func (m *Model) rerenderAll() {
 	for i, e := range m.events {
-		m.rendered[i] = render.Event(e, m.width, m.cfg.Loc, m.shades[i])
+		m.rendered[i] = render.Event(e, m.width, m.cfg.Loc)
 	}
 	m.dirty = true
 	m.refresh()
@@ -249,13 +226,8 @@ func (m *Model) rerenderAll() {
 // view when following. The flat slice is rebuilt only when something other
 // than an append happened.
 func (m *Model) refresh() {
-	if !m.held { // the log appears only after the greeting is typed and held for a beat
-		m.vp.SetContentLines(m.greetingLines(true))
-		return
-	}
 	if m.dirty {
 		m.flat = m.flat[:0]
-		m.flat = append(m.flat, m.greetingLines(false)...)
 		for _, lines := range m.rendered {
 			m.flat = append(m.flat, lines...)
 		}
@@ -265,19 +237,6 @@ func (m *Model) refresh() {
 	if m.follow {
 		m.vp.GotoBottom()
 	}
-}
-
-// greetingLines renders the greeting. During the reveal and hold it always
-// shows (force); afterwards it is gone once a prompt has cleared the screen.
-func (m Model) greetingLines(force bool) []string {
-	if m.cleared && !force {
-		return nil
-	}
-	lines := render.Greeting(m.cfg.User, m.cfg.SessionID, m.cwd, m.started, m.cfg.Loc, m.revealed)
-	if m.revealed >= m.greetingLen() {
-		lines = append(lines, "")
-	}
-	return lines
 }
 
 var (
@@ -356,6 +315,17 @@ func (m Model) footer() string {
 	if n := m.pairer.Skipped(); n > 0 {
 		parts = append(parts, footerStyle.Render(fmt.Sprintf("%d skipped", n)))
 	}
+	switch {
+	case m.notice != "":
+		parts = append(parts, footerStyle.Render(m.notice))
+	case m.copied:
+		parts = append(parts, footerNum.Render("copied"))
+	case m.copyBack > 0:
+		if cmds := m.commands(); m.copyBack < len(cmds) {
+			c := cmds[len(cmds)-1-m.copyBack]
+			parts = append(parts, footerStyle.Render("copy → ")+footerNum.Render(xansi.Truncate(firstLineOf(c.Cmd), 30, "…")))
+		}
+	}
 	line := strings.Join(parts, footerStyle.Render("  ·  "))
 	if m.lastErr != "" {
 		line += "  " + footerWarn.Render(m.lastErr)
@@ -373,8 +343,35 @@ func (m Model) View() tea.View {
 	return v
 }
 
-// sameType reports whether two events share a bar hue: commands (and
-// rejected commands) together, file changes (and rejected edits) together.
-func sameType(a, b event.Event) bool {
-	return fmt.Sprintf("%T", a) == fmt.Sprintf("%T", b)
+// commands returns the commands of the current block, oldest first.
+func (m Model) commands() []event.Command {
+	var out []event.Command
+	for _, e := range m.events {
+		if c, ok := e.(event.Command); ok {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+// copyTarget sends the targeted command to the clipboard (OSC 52, handled
+// by Bubble Tea) or explains in the footer why nothing was copied.
+func (m Model) copyTarget() (tea.Model, tea.Cmd) {
+	cmds := m.commands()
+	if len(cmds) == 0 {
+		m.notice = "nothing to copy"
+		return m, nil
+	}
+	if m.copyBack >= len(cmds) {
+		m.copyBack = len(cmds) - 1
+	}
+	m.copied, m.notice = true, ""
+	return m, tea.SetClipboard(cmds[len(cmds)-1-m.copyBack].Cmd)
+}
+
+func firstLineOf(s string) string {
+	if i := strings.IndexByte(s, '\n'); i >= 0 {
+		return s[:i]
+	}
+	return s
 }
