@@ -333,14 +333,28 @@ cursor block, one acid accent `#c8ff2e` replacing the reference's yellow,
 one full-bleed electric-blue field (`#1f2ee3`, the audit section), one
 light document panel (`#e6e9e4` with mint and violet tags, keys and demo),
 scanlines and grain fixed over the page, a blurred rust/teal field with
-soft-light noise behind the hero. Radius 0 everywhere, no em dashes, no
+soft-light noise behind the hero. Browser surfaces are themed too
+(`::selection`, thin acid scrollbars on the code panels). Motion is one
+authored moment: the rows arriving plus the progress fill; the earlier
+reveal-on-scroll on every section was removed on 2026-09-14 (craft-floor:
+not one identical entrance per section). Running text is Geist Mono, display
+type Archivo; labels are 12px minimum. Radius 0 everywhere, no em dashes, no
 icon library, no emoji outside the real terminal renders. Motion: rows arrive with a 55 ms
 stagger on load (explanatory), reveal-once on scroll armed by JS with a 2.5 s
 release timer so nothing can stay hidden, all gated by
 `prefers-reduced-motion`. Checks used: an iframe probe page in headless
 Chrome for overflow/media-query/font facts (a plain `--screenshot` at 400 px
 reports a false overflow on macOS), `grep -P '[\x{2014}\x{2013}]'` for
-dashes. GitHub Pages: the API answered "Your current plan does not support
+dashes, and the Chrome DevTools MCP server (`.mcp.json`, project scope)
+for real-Chrome captures: when the MCP is not loaded in the session, a
+30-line stdio client (`scratchpad/mcp/cdm.py` in the 2026-09-14 session)
+drives `npx chrome-devtools-mcp --headless --isolated` directly
+(`new_page` → parse the numeric page id → `resize_page`, `take_screenshot`;
+large screenshots come back as a file path, not inline data). impeccable's
+detector (`.claude/skills/impeccable/scripts/impeccable detect --json
+site/index.html`, run from the repo root) reports 14 findings that are all
+either false positives on decorative absolute layers or the brief's own
+choices (uppercase headings, Geist, the blurred field, the hazard strip). GitHub Pages: the API answered "Your current plan does not support
 GitHub Pages for this repository" while the repo is private; the workflow
 will fail until the repo is public and Pages is enabled with source
 "GitHub Actions". Repo-level skills installed for site work (gitignored under

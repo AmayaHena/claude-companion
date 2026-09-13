@@ -1,7 +1,6 @@
-// claude-companion site. Three behaviours, nothing else:
+// claude-companion site. Two behaviours, nothing else:
 // 1. the terminal rows get an index so CSS can stagger their arrival;
 // 2. the install command copies to the clipboard with visible feedback;
-// 3. sections and cells reveal once when they enter the viewport.
 // No scroll listeners, no libraries, reduced motion handled in CSS.
 (() => {
   "use strict";
@@ -41,20 +40,4 @@
       timer = setTimeout(() => { delete btn.dataset.state; btn.textContent = label; }, 1600);
     });
   }
-
-  // 3. reveal once. The hidden state is armed here, never in CSS alone, and a
-  //    timer releases anything the observer has not reached, so no element
-  //    can stay invisible.
-  const targets = document.querySelectorAll(".reveal");
-  if (reduce || !("IntersectionObserver" in window)) return;
-  targets.forEach((el) => el.classList.add("pre"));
-  const io = new IntersectionObserver((entries) => {
-    for (const e of entries) {
-      if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
-    }
-  }, { rootMargin: "0px 0px -8% 0px", threshold: 0.15 });
-  targets.forEach((el) => io.observe(el));
-  // Release: anything the observer has not reached loses the armed state
-  // outright (no transition to depend on), so nothing can stay invisible.
-  setTimeout(() => { targets.forEach((el) => el.classList.remove("pre")); io.disconnect(); }, 2500);
 })();

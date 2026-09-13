@@ -54,11 +54,11 @@
   <div class="wrap strip" aria-hidden="true"><span>Go 1.27 · Bubble Tea v2</span><span>Net packages linked <b>0</b></span><span>Files written <b>0</b></span><span>Tests <b>77</b> offline</span></div>
 
   <section class="wrap" id="glyphs">
-    <div class="head reveal">
+    <div class="head">
       <h2>Eight glyphs,<br>one per kind of action</h2>
       <span class="label ghost blue">The row starts with the clock, then one of these</span>
     </div>
-    <div class="legend reveal" style="--i:1">
+    <div class="legend">
       <div class="g"><span class="glyph">⚒️</span><b>Command</b><span>a Bash call, output under a bar</span></div>
       <div class="g"><span class="glyph">❗</span><b>Failed or refused</b><span>non-zero exit, or a tool use you rejected</span></div>
       <div class="g"><span class="glyph">⚠️</span><b>Git write</b><span>add, commit, push, merge, gh pr create…</span></div>
@@ -71,24 +71,24 @@
   </section>
 
   <section class="wrap" id="principles">
-    <div class="head reveal">
+    <div class="head">
       <h2>Three properties,<br>held to in code</h2>
       <span class="label ghost blue">Checked by tests, not by promise</span>
     </div>
     <div class="cards">
-      <article class="card reveal" style="--i:0">
+      <article class="card">
         <div class="top"><svg class="px" viewBox="0 0 40 40" aria-hidden="true"><rect x="8" y="0" width="8" height="8"/><rect x="16" y="0" width="8" height="8"/><rect x="24" y="0" width="8" height="8"/><rect x="0" y="8" width="8" height="8"/><rect x="32" y="8" width="8" height="8"/><rect x="0" y="16" width="8" height="8"/><rect x="16" y="16" width="8" height="8"/><rect x="32" y="16" width="8" height="8"/><rect x="0" y="24" width="8" height="8"/><rect x="32" y="24" width="8" height="8"/><rect x="8" y="32" width="8" height="8"/><rect x="16" y="32" width="8" height="8"/><rect x="24" y="32" width="8" height="8"/></svg><span class="mono">Pure function</span></div>
         <h3>Deterministic</h3>
         <p>The screen is a function of the transcript file, the terminal width and your time zone. No randomness, no timers, no state between runs. The only clock read is the picker's "3 min ago".</p>
         <div class="bar" style="--v:100%"><span>Same file, same rows</span><b>200/200 runs</b><span class="track"></span></div>
       </article>
-      <article class="card reveal" style="--i:1">
+      <article class="card">
         <div class="top"><svg class="px" viewBox="0 0 40 40" aria-hidden="true"><rect x="0" y="0" width="8" height="8"/><rect x="32" y="0" width="8" height="8"/><rect x="8" y="8" width="8" height="8"/><rect x="24" y="8" width="8" height="8"/><rect x="16" y="16" width="8" height="8"/><rect x="8" y="24" width="8" height="8"/><rect x="24" y="24" width="8" height="8"/><rect x="0" y="32" width="8" height="8"/><rect x="32" y="32" width="8" height="8"/></svg><span class="mono">No socket</span></div>
         <h3>Offline</h3>
         <p>No socket-capable package in the binary: no <code>net</code>, no <code>net/http</code>, no TLS. No telemetry, no update check, no model call. Everything on screen comes from bytes already on your disk.</p>
         <div class="bar" style="--v:0%"><span>Network packages linked</span><b>0 of 171</b><span class="track"></span></div>
       </article>
-      <article class="card reveal" style="--i:2">
+      <article class="card">
         <div class="top"><svg class="px" viewBox="0 0 40 40" aria-hidden="true"><rect x="0" y="0" width="8" height="8"/><rect x="8" y="0" width="8" height="8"/><rect x="24" y="0" width="8" height="8"/><rect x="32" y="0" width="8" height="8"/><rect x="0" y="8" width="8" height="8"/><rect x="8" y="8" width="8" height="8"/><rect x="24" y="8" width="8" height="8"/><rect x="32" y="8" width="8" height="8"/><rect x="0" y="24" width="8" height="8"/><rect x="8" y="24" width="8" height="8"/><rect x="24" y="24" width="8" height="8"/><rect x="32" y="24" width="8" height="8"/><rect x="0" y="32" width="8" height="8"/><rect x="8" y="32" width="8" height="8"/><rect x="24" y="32" width="8" height="8"/><rect x="32" y="32" width="8" height="8"/></svg><span class="mono">Opened r</span></div>
         <h3>Read-only</h3>
         <p>Transcripts are opened for reading and polled by size. The tool writes no file, no cache, no config, and never touches Claude Code's state. Run it against a live session with nothing at risk.</p>
@@ -98,12 +98,12 @@
   </section>
 
   <section class="wrap" id="see">
-    <div class="head reveal">
+    <div class="head">
       <h2>One row per action,<br>in your terminal's palette</h2>
       <span class="label ghost blue">Every string sanitised</span>
     </div>
     <div class="grid">
-      <article class="cell half reveal" style="--i:0">
+      <article class="cell half">
         <div class="top"><h3>Edits and new files</h3></div>
         <p>An edit shows its hunks, a created file its content, both highlighted from the file's extension.</p>
         <pre class="sample term"><span class="b c-bblack">18:00</span> 📁 <span class="b c-blue">/work/claude-companion/internal/ui/model.go</span>
@@ -118,7 +118,7 @@
       <span class="c-cyan">▕▏</span><span class="b c-green">+</span><span class="c-blue">retries</span>: <span class="c-cyan">3</span>
       <span class="c-cyan">▕▏</span><span class="b c-green">+</span><span class="dim c-bblack"># created by the demo</span></pre>
       </article>
-      <article class="cell half reveal" style="--i:1">
+      <article class="cell half">
         <div class="top"><h3>Marks you want to notice</h3></div>
         <p>A git or GitHub write is underlined red with a warning mark. A command that reaches the network gets a signal mark.</p>
         <pre class="sample term"><span class="b c-bblack">18:00</span> 🛜 ⚒️ curl -s https://api.github.com/repos/AmayaHena/claude-companion |
@@ -131,7 +131,7 @@
 <span class="b c-bblack">18:00</span> ⚠️ ⚒️ <span class="u c-red u">g</span><span class="u c-red u">i</span><span class="u c-red u">t</span><span class="c-red u"> </span><span class="u c-red u">c</span><span class="u c-red u">o</span><span class="u c-red u">m</span><span class="u c-red u">m</span><span class="u c-red u">i</span><span class="u c-red u">t</span><span class="c-red u"> </span><span class="u c-red u">-</span><span class="u c-red u">m</span><span class="c-red u"> </span><span class="u c-red u">&#34;</span><span class="u c-red u">d</span><span class="u c-red u">e</span><span class="u c-red u">m</span><span class="u c-red u">o</span><span class="u c-red u">:</span><span class="c-red u"> </span><span class="u c-red u">t</span><span class="u c-red u">h</span><span class="u c-red u">e</span><span class="c-red u"> </span><span class="u c-red u">g</span><span class="u c-red u">i</span><span class="u c-red u">t</span><span class="c-red u"> </span><span class="u c-red u">g</span><span class="u c-red u">a</span><span class="u c-red u">t</span><span class="u c-red u">e</span><span class="u c-red u">&#34;</span>
       <span class="c-yellow">▕▏</span><span class="dim">[main 0000000] demo: the git gate</span></pre>
       </article>
-      <article class="cell wide tinted reveal" style="--i:2">
+      <article class="cell wide tinted">
         <div class="aurora" aria-hidden="true"></div>
         <div class="top"><h3>Commands, with what they printed</h3><svg class="px" viewBox="0 0 40 40" aria-hidden="true"><rect x="0" y="0" width="8" height="8"/><rect x="0" y="8" width="8" height="8"/><rect x="8" y="8" width="8" height="8"/><rect x="0" y="16" width="8" height="8"/><rect x="8" y="16" width="8" height="8"/><rect x="16" y="16" width="8" height="8"/><rect x="0" y="24" width="8" height="8"/><rect x="8" y="24" width="8" height="8"/><rect x="16" y="24" width="8" height="8"/><rect x="24" y="24" width="8" height="8"/><rect x="0" y="32" width="8" height="8"/><rect x="8" y="32" width="8" height="8"/><rect x="16" y="32" width="8" height="8"/><rect x="24" y="32" width="8" height="8"/><rect x="32" y="32" width="8" height="8"/></svg></div>
         <p>The command line syntax-highlighted, its output under a bar, stderr in red. A failed command turns the glyph into an alert and shows its exit code.</p>
@@ -142,14 +142,14 @@
       <span class="c-red">▕▏</span><span class="c-red">internal/ui/model.go:12:2: undefined: nothing</span>
 <span class="b c-bblack">18:00</span> ⚒️ go <span class="c-blue">test</span> ./internal/ui/ -run <span class="c-green">&#39;^$&#39;</span> -bench . -benchtime 3x  <span class="c-bblack">bg</span></pre>
       </article>
-      <article class="cell narrow tinted reveal" style="--i:3">
+      <article class="cell narrow tinted">
         <div class="aurora" aria-hidden="true"></div>
         <div class="top"><h3>Subagents and skills</h3><svg class="px" viewBox="0 0 40 40" aria-hidden="true"><rect x="0" y="0" width="8" height="8"/><rect x="32" y="0" width="8" height="8"/><rect x="8" y="8" width="8" height="8"/><rect x="24" y="8" width="8" height="8"/><rect x="16" y="16" width="8" height="8"/><rect x="8" y="24" width="8" height="8"/><rect x="24" y="24" width="8" height="8"/><rect x="0" y="32" width="8" height="8"/><rect x="32" y="32" width="8" height="8"/></svg></div>
         <p>A launch line for each subagent, in blue, and one for each skill, in green. Their inner work stays out of the view.</p>
         <pre class="sample term"><span class="b c-bblack">18:00</span> ℹ️ <span class="b c-green">superpowers:brainstorming</span>
 <span class="b c-bblack">18:00</span> 🤖 <span class="b c-blue">Research the transcript format</span>  <span class="c-bblack">general-purpose</span></pre>
       </article>
-      <article class="cell full reveal" style="--i:4">
+      <article class="cell full">
         <div><div class="top"><h3>Your prompts clear the screen</h3></div>
         <p>Each new prompt starts a fresh view, so what you see is always the work done since your last message. The footer tallies that work by glyph.</p></div>
         <pre class="sample term"><span class="b c-bblack">18:00</span>   <span class="b">demo: one of each case</span>
@@ -162,31 +162,31 @@
   <section class="field-blue" id="audited">
     <svg class="checker l" viewBox="0 0 100 100" aria-hidden="true"><rect x="0" y="0" width="50" height="50"/><rect x="50" y="50" width="50" height="50"/></svg><svg class="checker r" viewBox="0 0 100 100" aria-hidden="true"><rect x="0" y="0" width="50" height="50"/><rect x="50" y="50" width="50" height="50"/></svg>
     <div class="wrap">
-      <div class="head reveal">
+      <div class="head">
         <h2>Audited before v1,<br>rerun the checks</h2>
         <span class="label">Ten findings verified, none refuted</span>
       </div>
       <p class="sub">Five lenses, fifteen independent agents, every finding handed to a skeptic told to refute it. All fixed or documented. The claims are backed by tests and by commands anyone can run.</p>
       <div class="checks">
-        <div class="check reveal" style="--i:0">
+        <div class="check">
           <h3>No network</h3>
           <p>No socket-capable package in the binary's dependency graph.</p>
           <pre>go list -deps ./cmd/claude-companion | grep -E '^(net|net/http|crypto/tls)$'
 <span class="out">(prints nothing)</span></pre>
         </div>
-        <div class="check reveal" style="--i:1">
+        <div class="check">
           <h3>Read-only</h3>
           <p>Four filesystem calls in product code, all reads.</p>
           <pre>grep -rn --exclude='*_test.go' 'os\.\(Create\|WriteFile\|OpenFile\|Mkdir\|Remove\)' cmd internal
 <span class="out">(prints nothing)</span></pre>
         </div>
-        <div class="check reveal" style="--i:2">
+        <div class="check">
           <h3>Untrusted input is inert</h3>
           <p>Escape sequences, controls and invisible format characters never reach the screen.</p>
           <pre>go test ./... -run 'Sanitis|Controls|Marks'
 <span class="out">ok</span></pre>
         </div>
-        <div class="check reveal" style="--i:3">
+        <div class="check">
           <h3>No build-machine paths</h3>
           <p>The documented build keeps your home directory out of the binary.</p>
           <pre>go build -trimpath ./cmd/claude-companion &amp;&amp; strings claude-companion | grep -c "$HOME"
@@ -198,7 +198,7 @@
   </section>
 
   <section class="wrap" id="use">
-    <div class="doc corner reveal">
+    <div class="doc corner">
       <i class="tl"></i><i class="tr"></i><i class="bl"></i><i class="br"></i>
       <div>
         <span class="tag violet">Keys</span>
