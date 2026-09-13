@@ -18,15 +18,26 @@ to them.
   every time. There is no randomness, no timer, no animation, no state kept
   between runs. The only place the wall clock is read is the "3 min ago"
   column of the session picker.
-- **No network.** The binary imports no network package and opens no socket.
-  No telemetry, no update check, no API call, no model. Everything on screen
-  comes from bytes already on your disk. The one thing that leaves the
-  process is terminal output to your own terminal, which includes the OSC 52
-  escape used when you press `c` to copy a command.
+- **No network.** The binary links no socket-capable package: no `net`,
+  `net/http` or TLS in its dependency graph (only the `net/url` parser, via
+  the terminal library). No telemetry, no update check, no API call, no
+  model. Everything on screen comes from bytes already on your disk. What
+  leaves the process is terminal output to your own terminal, which includes
+  the OSC 52 escape when you press `c` to copy a command; and, only when
+  running inside tmux, the terminal library runs `tmux info` once at startup
+  to read the colour capabilities.
 - **Read-only.** Transcripts are opened for reading and polled by size. The
   tool writes no file, no cache, no config, and never touches the transcript
-  or Claude Code's state. You can run it against a live session with nothing
-  at risk.
+  or Claude Code's state; the terminal library's own debug files
+  (`TEA_TRACE`, `TEA_DEBUG`) are disabled at startup. You can run it against
+  a live session with nothing at risk.
+- **Untrusted input.** A transcript is text an AI session wrote, including
+  whatever a command printed. Every string from it is sanitised before it
+  reaches the screen, the window title, the footer or the clipboard: escape
+  characters are shown as `␛`, other control and invisible format
+  characters are dropped. Bodies are capped at 2,000 rows per event and an
+  unterminated line at 64 MB, so a hostile or huge transcript cannot freeze
+  the viewer or drive your terminal.
 
 If a change needs a clock, a socket or a write to work, the change is wrong
 for this tool.
@@ -41,9 +52,11 @@ opening screen: the log shows from the first line.
 
 Keys: `q`, `esc`, `ctrl+c` quit. `↑ ↓`, `j k`, `pgup pgdn`, `home end` scroll.
 `c` copies the latest command to the clipboard; `tab` and `shift+tab` move the
-copy target to older commands, the footer names it. The copy goes through the
-terminal's OSC 52 support; in Ghostty, `clipboard-write = allow` avoids a
-confirmation on each copy.
+copy target to older commands, the footer names it. The whole command is
+copied, sanitised, even when the screen shows only its first line; the footer
+says how many lines went out. The copy goes through the terminal's OSC 52
+support; in Ghostty, `clipboard-write = allow` avoids a confirmation on each
+copy.
 
 The tool does not capture the mouse, so the terminal keeps its own text
 selection. Newest at the bottom; the view follows the tail until you scroll
@@ -95,9 +108,12 @@ Colours are the terminal's own palette, so your Ghostty theme is what you see.
 ## Build
 
 ```
-go build ./cmd/claude-companion
+go build -trimpath ./cmd/claude-companion
 go test ./...
 ```
+
+`-trimpath` keeps your build machine's paths out of the binary; a release
+binary is built with it.
 
 Go 1.27. Direct dependencies: `charm.land/bubbletea/v2`, `charm.land/lipgloss/v2`,
 `charm.land/bubbles/v2`, `github.com/alecthomas/chroma/v2` (lexers only) and
@@ -115,6 +131,11 @@ CLAUDE_COMPANION_E2E_FILE=~/.claude/projects/<slug>/<id>.jsonl \
 CLAUDE_COMPANION_E2E_EXPECT=<commands>,<files>,<rejected>,<prompts> \
 go test ./internal/ui/ -run TestReplayRealSession -v
 ```
+
+A self-contained demo, no real session needed: in one terminal
+`sh demo/play.sh`, which replays a synthetic transcript with one event of each
+kind, one line every 0.8 s; in another, right after,
+`CLAUDE_CONFIG_DIR="$PWD/demo" claude-companion demo1111`.
 
 Design: `docs/superpowers/specs/2026-09-10-claude-companion-design.md`.
 Architecture: `docs/architecture.md`.

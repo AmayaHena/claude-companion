@@ -12,9 +12,9 @@ import (
 	"charm.land/lipgloss/v2"
 	xansi "github.com/charmbracelet/x/ansi" // the test package already names a regexp ansi
 
-	"claude-companion/internal/event"
-	"claude-companion/internal/render"
-	"claude-companion/internal/transcript"
+	"github.com/AmayaHena/claude-companion/internal/event"
+	"github.com/AmayaHena/claude-companion/internal/render"
+	"github.com/AmayaHena/claude-companion/internal/transcript"
 )
 
 // Config is everything the model needs; nothing is read from the environment.
@@ -51,7 +51,7 @@ type Model struct {
 	// copy target: 0 is the latest command, k the k-th before it; copied and
 	// notice are footer feedback, cleared by the next new event.
 	copyBack int
-	copied   bool
+	copied   int // lines copied by the last c, 0 when nothing was copied since the last event
 	notice   string
 }
 
@@ -150,13 +150,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if cmds := m.commands(); m.copyBack < len(cmds)-1 {
 				m.copyBack++
 			}
-			m.copied = false
+			m.copied = 0
 			return m, nil
 		case "shift+tab":
 			if m.copyBack > 0 {
 				m.copyBack--
 			}
-			m.copied = false
+			m.copied = 0
 			return m, nil
 		}
 		var cmd tea.Cmd
@@ -204,7 +204,7 @@ func (m *Model) ingest(line string) {
 			continue
 		}
 		lines := render.Event(e, m.width, m.cfg.Loc)
-		m.copyBack, m.copied, m.notice = 0, false, "" // a new event retargets the copy key
+		m.copyBack, m.copied, m.notice = 0, 0, "" // a new event retargets the copy key
 		m.index[e.EventID()] = len(m.events)
 		m.events = append(m.events, e)
 		m.rendered = append(m.rendered, lines)
@@ -318,17 +318,19 @@ func (m Model) footer() string {
 	switch {
 	case m.notice != "":
 		parts = append(parts, footerStyle.Render(m.notice))
-	case m.copied:
+	case m.copied > 1:
+		parts = append(parts, footerNum.Render(fmt.Sprintf("copied %d lines", m.copied)))
+	case m.copied == 1:
 		parts = append(parts, footerNum.Render("copied"))
 	case m.copyBack > 0:
 		if cmds := m.commands(); m.copyBack < len(cmds) {
 			c := cmds[len(cmds)-1-m.copyBack]
-			parts = append(parts, footerStyle.Render("copy → ")+footerNum.Render(xansi.Truncate(firstLineOf(c.Cmd), 30, "…")))
+			parts = append(parts, footerStyle.Render("copy → ")+footerNum.Render(xansi.Truncate(render.Sanitize(firstLineOf(c.Cmd)), 30, "…")))
 		}
 	}
 	line := strings.Join(parts, footerStyle.Render("  ·  "))
 	if m.lastErr != "" {
-		line += "  " + footerWarn.Render(m.lastErr)
+		line += "  " + footerWarn.Render(render.Sanitize(m.lastErr)) // error text embeds a path from disk
 	} else if m.eof {
 		line += "  " + footerWarn.Render("stream closed")
 	}
@@ -338,8 +340,8 @@ func (m Model) footer() string {
 func (m Model) View() tea.View {
 	v := tea.NewView(m.vp.View() + "\n" + m.footer())
 	v.AltScreen = true
-	v.MouseMode = tea.MouseModeNone // no mouse reporting: the terminal keeps text selection; wheel arrives as arrow keys
-	v.WindowTitle = "claude-companion " + m.cfg.SessionID
+	v.MouseMode = tea.MouseModeNone                                        // no mouse reporting: the terminal keeps text selection; wheel arrives as arrow keys
+	v.WindowTitle = "claude-companion " + render.Sanitize(m.cfg.SessionID) // a filename, written raw into OSC 2 by Bubble Tea
 	return v
 }
 
@@ -365,8 +367,12 @@ func (m Model) copyTarget() (tea.Model, tea.Cmd) {
 	if m.copyBack >= len(cmds) {
 		m.copyBack = len(cmds) - 1
 	}
-	m.copied, m.notice = true, ""
-	return m, tea.SetClipboard(cmds[len(cmds)-1-m.copyBack].Cmd)
+	// The clipboard gets the whole command (the screen shows its first line
+	// only), sanitised with its newlines and tabs kept; the footer says how
+	// many lines went out so a multi-line copy is never silent.
+	text := render.SanitizeText(cmds[len(cmds)-1-m.copyBack].Cmd)
+	m.copied, m.notice = strings.Count(text, "\n")+1, ""
+	return m, tea.SetClipboard(text)
 }
 
 func firstLineOf(s string) string {

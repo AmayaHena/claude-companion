@@ -10,8 +10,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"claude-companion/internal/event"
-	"claude-companion/internal/transcript"
+	"github.com/AmayaHena/claude-companion/internal/event"
+	"github.com/AmayaHena/claude-companion/internal/transcript"
 )
 
 // drain feeds every line the tailer delivers within `quiet` of silence.

@@ -10,7 +10,8 @@ import (
 	"charm.land/lipgloss/v2"
 	xansi "github.com/charmbracelet/x/ansi" // the test package already names a regexp ansi
 
-	"claude-companion/internal/transcript"
+	"github.com/AmayaHena/claude-companion/internal/render"
+	"github.com/AmayaHena/claude-companion/internal/transcript"
 )
 
 // Picker lists recent sessions and lets the user open one. It runs as its
@@ -91,11 +92,11 @@ func (p Picker) View() tea.View {
 		if i == p.cursor {
 			mark = pickerCursor.Render("▸ ")
 		}
-		id := s.ID
-		if len(id) > 8 {
-			id = id[:8]
+		id := render.Sanitize(s.ID) // a filename from disk
+		if r := []rune(id); len(r) > 8 {
+			id = string(r[:8])
 		}
-		prompt := s.FirstPrompt
+		prompt := render.Sanitize(s.FirstPrompt) // transcript text is untrusted
 		if prompt == "" {
 			prompt = pickerEmpty.Render("(no prompt yet)")
 		} else {
@@ -103,7 +104,7 @@ func (p Picker) View() tea.View {
 		}
 		dir := ""
 		if s.Cwd != "" { // filepath.Base("") would be "."
-			dir = filepath.Base(s.Cwd)
+			dir = render.Sanitize(filepath.Base(s.Cwd))
 		}
 		line := mark + pickerID.Render(id) + "  " + pickerAgo.Render(fmt.Sprintf("%-11s", ago(p.now, s.ModTime))) + "  " + pickerDir.Render(dir) + "  " + prompt
 		b.WriteString(xansi.Truncate(line, p.width, "…") + "\n")

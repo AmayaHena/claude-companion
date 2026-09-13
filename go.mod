@@ -1,4 +1,4 @@
-module claude-companion
+module github.com/AmayaHena/claude-companion
 
 go 1.27.1
 

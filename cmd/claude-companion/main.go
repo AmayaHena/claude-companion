@@ -20,11 +20,16 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"claude-companion/internal/transcript"
-	"claude-companion/internal/ui"
+	"github.com/AmayaHena/claude-companion/internal/transcript"
+	"github.com/AmayaHena/claude-companion/internal/ui"
 )
 
 func main() {
+	// Bubble Tea reads these two straight from the process environment and
+	// would create files (a trace log, a panic log in the cwd). This tool
+	// writes nothing, whatever the environment says.
+	os.Unsetenv("TEA_TRACE")
+	os.Unsetenv("TEA_DEBUG")
 	if len(os.Args) > 2 || (len(os.Args) == 2 && (os.Args[1] == "-h" || os.Args[1] == "--help")) {
 		fmt.Fprintln(os.Stderr, "usage: claude-companion [session-id | unique prefix]")
 		fmt.Fprintln(os.Stderr, "without an argument, pick one of the most recent sessions")

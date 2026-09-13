@@ -7,7 +7,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"claude-companion/internal/transcript"
+	"github.com/AmayaHena/claude-companion/internal/transcript"
 )
 
 func pickerFixture() ([]transcript.Session, time.Time) {
@@ -68,5 +68,22 @@ func TestPickerKeysChooseAndQuit(t *testing.T) {
 	e := NewPicker(nil, now)
 	if v := e.View().Content; !strings.Contains(v, "no sessions") {
 		t.Fatalf("empty picker view = %q", v)
+	}
+}
+
+// Prompt text and cwd come from transcripts and are untrusted: no terminal
+// control may reach the picker screen.
+func TestPickerSanitisesTranscriptText(t *testing.T) {
+	_, now := pickerFixture()
+	hostile := "x\x1b]0;EVIL\x07y\x1b[2Jz"
+	p := NewPicker([]transcript.Session{{ID: "d\x1b[2Jd", Path: "/p/d.jsonl", Cwd: "/Users/amaya/" + hostile, FirstPrompt: hostile, ModTime: now}}, now)
+	v := ansi.ReplaceAllString(p.View().Content, "")
+	for _, r := range v {
+		if r < 0x20 && r != '\n' || r == 0x7f {
+			t.Fatalf("picker leaks control %U: %q", r, v)
+		}
+	}
+	if !strings.Contains(v, "x␛]0;EVILy␛[2Jz") {
+		t.Fatalf("picker view = %q", v)
 	}
 }

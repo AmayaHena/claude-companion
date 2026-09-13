@@ -12,11 +12,12 @@ commands with output, file edits and creations as diffs, refused tool uses,
 and the user's prompts. Assistant prose and thinking are never shown. No
 network, no writes, deterministic (no randomness anywhere, no timers).
 
-Owner: Amaya (`amaya` on this Mac). Repo: `github.com/AmayaHena/claude-companion`,
+Owner: Amaya (`amaya` on this Mac). Repo: `github.com/AmayaHena/claude-companion`
+(module path renamed to match on 2026-09-13 so `go install …@version` works),
 remote alias `github-personal` (the plain `github.com` SSH host maps to a work
 key; see "Git rules").
 
-## Layout (Go 1.27, module `claude-companion`)
+## Layout (Go 1.27, module `github.com/AmayaHena/claude-companion`)
 
 ```
 cmd/claude-companion/main.go     args, CLAUDE_CONFIG_DIR, Resolve or picker (no arg), Tail(100ms), run program
@@ -29,6 +30,9 @@ internal/event/testdata/*.jsonl  16 fixtures cut from real transcripts (14 two-l
 docs/superpowers/specs, plans    original design and plan (the layout section there predates the
                                  current row anatomy; this file is authoritative)
 docs/architecture.md             prose architecture, kept current
+demo/                            synthetic one-of-each transcript + play.sh replaying it line by line
+                                 (sh demo/play.sh first, it creates the replayed file; then
+                                 CLAUDE_CONFIG_DIR="$PWD/demo" claude-companion demo1111); replayed file gitignored
 ```
 
 Dependencies, exact: `charm.land/bubbletea/v2 v2.0.9`, `charm.land/lipgloss/v2
@@ -40,7 +44,7 @@ v2.27.0` (lexers only), `github.com/charmbracelet/x/ansi v0.11.8`. Note the
 
 ```
 go build ./... && go vet ./... && gofmt -l . && go test ./...      # the gate; all must be clean
-go install ./cmd/claude-companion                                   # puts the binary in ~/go/bin
+go install -trimpath ./cmd/claude-companion                         # puts the binary in ~/go/bin; -trimpath keeps home paths out of it
 go test ./internal/ui/ -run '^$' -bench . -benchtime 3x             # ingestion benchmarks
 CLAUDE_COMPANION_E2E_FILE=<transcript> CLAUDE_COMPANION_E2E_EXPECT=<cmd>,<files>,<rejected>,<prompts> \
   go test ./internal/ui/ -run TestReplayRealSession -v               # opt-in replay of a real session
@@ -130,6 +134,32 @@ GOSUMDB=sum.golang.org` on this machine: the owner's shell exports
   real transcript and assert `ansi.StringWidth(line) <= width` (recipe in
   the session that built this; a test file for it lived at
   `internal/render/overflow_hunt_test.go` and was removed; recreate on demand).
+- Untrusted text: everything from a transcript (commands, output, file
+  lines, paths, prompts, agent descriptions and types, skill names, picker
+  rows, the footer's copy target) passes through `render.Sanitize`: ESC →
+  `␛` (U+241B, one cell, keeps the payload readable), other C0, DEL and C1
+  (U+0080–U+009F) dropped, invalid UTF-8 → U+FFFD. `clean` calls it, so
+  the render path is covered by construction; the picker and the footer
+  call it explicitly. Found on 2026-09-13 by feeding `ESC ] 0 ; … BEL` through
+  the renderer: it reached the terminal raw (title, clear-screen and OSC 52
+  injection from a transcript were all possible). Test:
+  `TestTerminalControlsNeverReachTheScreen` covers every event type; the
+  Agent `Type` suffix was the last leak (it bypassed `clean`). Any new
+  string that comes from a transcript must be added to that test. Also
+  sanitised: the window title (session id is a filename), the footer error
+  (embeds a path), the picker id. `SanitizeText` keeps `\n`/`\t` and is what
+  the clipboard gets; `Marks` decides on `SanitizeText(cmd)` so a NUL or
+  zero-width character inside `git push` cannot hide the warning. Sanitize
+  also drops bidi controls, zero-width space/non-joiner/marks, soft hyphen
+  and BOM (U+200D joiner kept).
+- Caps: `maxBodyRows = 2000` rows per body (command output, created file,
+  all hunks of one change) then one `… N more lines` trailer;
+  `transcript.maxLine = 64 MiB` for an unterminated line (dropped with an
+  error Line, reading resumes at the next newline). Hunk signs are read as
+  a rune, never a byte.
+- `main` unsets `TEA_TRACE` and `TEA_DEBUG` before starting Bubble Tea: both
+  are read with `os.Getenv` inside the library (not through
+  `WithEnvironment`) and would create files. Verified in a pty: no file.
 - Truncating styled strings: use `ansi.Truncate(s, width, "…")`; rune
   slicing cuts escape sequences. Plain strings go through `fit`.
 - Wrapping: `ansi.Wrap(text, width, "")` is word-aware and breaks over-long
@@ -230,7 +260,7 @@ GOSUMDB=sum.golang.org` on this machine: the owner's shell exports
   skills are counted but are not in the percentage base. No session id, no
   follow state, by owner's request.
 
-## Tests (68 functions, all offline)
+## Tests (77 functions, all offline)
 
 - Fixtures are real two-line cuts; employer content was replaced by neutral
   text with identical JSON shape and identical asserted values. Never commit
@@ -265,6 +295,24 @@ GOSUMDB=sum.golang.org` on this machine: the owner's shell exports
   comes from, you do not have it.
 - No guesses presented as facts. Mark unverified things as unverified.
 - Palette only for colours. No emoji beyond the eight glyphs.
+
+## Trust audit (2026-09-13)
+
+A five-lens workflow (security, determinism, read-only, no network, privacy;
+15 agents, every finding re-checked by a skeptic told to refute it) ran
+against the tree before v1. Claims that held as stated: determinism (one
+wall-clock read, the picker's "ago"; footer order fixed by construction),
+read-only (four read-only fs calls in product code, `lsof` shows the
+transcript as `3r`), no network (171-package graph, no `net`, no TLS; binary
+symbols confirm). Fixed after the audit: raw escapes from transcripts reaching
+the terminal, title/footer/picker id unsanitised, marks decided on raw text,
+whole raw command copied while one line shown, unbounded tailer line, uncapped
+bodies, byte-split hunk sign, bidi/zero-width passthrough, `TEA_TRACE`/`TEA_DEBUG`
+file writes, home paths in the binary (`-trimpath`). Known and accepted: a
+`tmux info` subprocess under tmux (colorprofile); the tailer follows the
+inode, not the path (a transcript replaced in place is not re-opened);
+fixtures carry `/Users/amaya` paths and the public username; the picker reads
+at most 200 lines of the 10 most recent sessions.
 
 ## Out of scope so far (do not build silently)
 

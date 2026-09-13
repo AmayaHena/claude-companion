@@ -9,8 +9,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"claude-companion/internal/event"
-	"claude-companion/internal/transcript"
+	"github.com/AmayaHena/claude-companion/internal/event"
+	"github.com/AmayaHena/claude-companion/internal/transcript"
 )
 
 var ansi = regexp.MustCompile(`\x1b\[[0-9;]*m`)
@@ -286,5 +286,14 @@ func TestCopyCommandKeys(t *testing.T) {
 	m, cmd = key(m, tea.Key{Code: 'c', Text: "c"})
 	if msg := cmd(); fmt.Sprint(msg) != "cmd 2" {
 		t.Fatalf("copied %q, want the latest", fmt.Sprint(msg))
+	}
+	// the footer's copy target is transcript text: no terminal control may reach it
+	hostile := `{"type":"assistant","uuid":"a3","timestamp":"2026-09-10T10:00:00.000Z","message":{"role":"assistant","content":[{"type":"tool_use","id":"b3","name":"Bash","input":{"command":"evil \u001b]0;T\u0007 cmd"}}]}}`
+	u4, r4 := bashPair(4, 1)
+	m = feed(m, hostile, u4, r4) // the hostile command is now one back from the latest
+	m, _ = key(m, tea.Key{Code: tea.KeyTab})
+	f := ansi.ReplaceAllString(m.footer(), "")
+	if strings.ContainsAny(f, "\x1b\x07") || !strings.Contains(f, "copy → evil ␛]0;T cmd") {
+		t.Fatalf("footer must show the sanitised target: %q", f)
 	}
 }

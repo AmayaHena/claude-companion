@@ -7,12 +7,13 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"charm.land/lipgloss/v2"
 	"github.com/alecthomas/chroma/v2"
 	"github.com/charmbracelet/x/ansi"
 
-	"claude-companion/internal/event"
+	"github.com/AmayaHena/claude-companion/internal/event"
 )
 
 // Row anatomy: a header row is "HH:MM" (5), a space, the two-cell glyph in
@@ -41,7 +42,7 @@ func Event(e event.Event, width int, loc *time.Location) []string {
 	case event.Rejected:
 		lines = []string{rejected(v, width, loc)}
 	case event.Agent:
-		lines = []string{header(v.At, loc, glyphAgent, styleAgent.Render(clean(v.Description)), v.Type, width)}
+		lines = []string{header(v.At, loc, glyphAgent, styleAgent.Render(clean(v.Description)), clean(v.Type), width)}
 	case event.Skill:
 		title := v.Name
 		if v.Args != "" {
@@ -81,10 +82,11 @@ func firstLine(s string) string {
 // and rendering agree.
 const tabWidth = 4
 
-// clean makes a line measurable: tabs become spaces (lipgloss would expand
-// them at render time, after truncation measured them as zero width), and a
-// bare carriage return keeps only what follows it, which is what a terminal
-// would have displayed.
+// clean makes a line measurable and safe to print. Tabs become spaces
+// (lipgloss would expand them at render time, after truncation measured them
+// as zero width); a bare carriage return keeps only what follows it, which is
+// what a terminal would have displayed; then Sanitize removes every terminal
+// control.
 func clean(s string) string {
 	if i := strings.IndexByte(s, '\n'); i >= 0 { // a single row never holds a newline
 		s = s[:i]
@@ -92,7 +94,52 @@ func clean(s string) string {
 	if i := strings.LastIndexByte(s, '\r'); i >= 0 {
 		s = s[i+1:]
 	}
-	return strings.ReplaceAll(s, "\t", strings.Repeat(" ", tabWidth))
+	return Sanitize(strings.ReplaceAll(s, "\t", strings.Repeat(" ", tabWidth)))
+}
+
+// Sanitize makes untrusted transcript text inert for a terminal: ESC becomes
+// the visible ␛ (U+241B) so the rest of a sequence reads as plain text; the
+// other C0 controls, DEL and the C1 controls (U+0080–U+009F, which many
+// terminals treat as CSI/OSC introducers) are dropped; so are the invisible
+// format characters that can reorder or pad displayed text (bidi controls,
+// zero-width spaces, soft hyphen, BOM; the zero-width joiner U+200D stays so
+// emoji sequences keep their shape); invalid UTF-8 becomes U+FFFD. Every
+// string that comes from a transcript must pass through here before it
+// reaches the screen, the title, the footer or the picker.
+func Sanitize(s string) string { return sanitize(s, false) }
+
+// SanitizeText is Sanitize for multi-line text that is not drawn as a row:
+// newlines and tabs are kept. It is what the clipboard receives.
+func SanitizeText(s string) string { return sanitize(s, true) }
+
+func sanitize(s string, keepLayout bool) string {
+	s = strings.ToValidUTF8(s, "\ufffd")
+	return strings.Map(func(r rune) rune {
+		switch {
+		case keepLayout && (r == '\n' || r == '\t'):
+			return r
+		case r == 0x1b:
+			return '\u241b'
+		case r < 0x20, r == 0x7f, r >= 0x80 && r <= 0x9f:
+			return -1
+		case r == 0x200b, r == 0x200c, r == 0x200e, r == 0x200f, // zero-width space, non-joiner, marks
+			r >= 0x202a && r <= 0x202e, // bidi embeddings and overrides
+			r >= 0x2066 && r <= 0x2069, // bidi isolates
+			r == 0x00ad, r == 0xfeff:   // soft hyphen, byte order mark
+			return -1
+		}
+		return r
+	}, s)
+}
+
+// maxBodyRows caps the rows drawn for one body (a command's output, a
+// created file, the hunks of an edit); the rest is one trailer row. Keeps a
+// multi-million-line write from freezing the viewer on every resize.
+const maxBodyRows = 2000
+
+// trailer is the row that stands for the rows not drawn.
+func trailer(g string, more int) string {
+	return g + styleMeta.Render(fmt.Sprintf("… %d more lines", more))
 }
 
 // fitStyled truncates an already-styled string to width cells without
@@ -144,8 +191,12 @@ func body(accent, style lipgloss.Style, text string, width int) []string {
 	}
 	text = strings.TrimRight(text, "\n")
 	lines := strings.Split(text, "\n")
-	out := make([]string, 0, len(lines))
-	for _, l := range lines {
+	out := make([]string, 0, min(len(lines), maxBodyRows)+1)
+	for i, l := range lines {
+		if i == maxBodyRows {
+			out = append(out, trailer(gutter(accent), len(lines)-i))
+			break
+		}
 		out = append(out, gutter(accent)+style.Render(fit(l, width-indentWidth)))
 	}
 	return out
@@ -207,6 +258,7 @@ var netRE = regexp.MustCompile(`(^|[^[:alnum:]_./-])(` +
 // net for a network command that is not already a warning (the warning wins:
 // `git push` is ⚠️, never 🛜). The footer counts them.
 func Marks(cmd string) (warn, net bool) {
+	cmd = SanitizeText(cmd) // decide on the text the user reads, not on bytes Sanitize removes
 	warn = gitWriteRE.MatchString(cmd)
 	return warn, !warn && netRE.MatchString(cmd)
 }
@@ -307,26 +359,55 @@ func fileChange(fc event.FileChange, width int, loc *time.Location) []string {
 	lx := lexerFor(fc.Path)
 	if fc.Kind == event.Create {
 		codes := strings.Split(strings.TrimRight(fc.Content, "\n"), "\n")
+		more := 0
+		if len(codes) > maxBodyRows {
+			more, codes = len(codes)-maxBodyRows, codes[:maxBodyRows]
+		}
 		for i := range codes {
 			codes[i] = clean(codes[i])
 		}
 		for _, code := range highlightLines(lx, codes) {
 			lines = append(lines, g+styleSignAdd.Render("+")+fitStyled(code, room-1))
 		}
+		if more > 0 {
+			lines = append(lines, trailer(g, more))
+		}
 		return lines
 	}
-	for _, h := range fc.Hunks {
+	drawn := 0 // hunk rows drawn so far; the cap spans all hunks of the change
+	for hi, h := range fc.Hunks {
+		if drawn >= maxBodyRows {
+			more := 0
+			for _, rest := range fc.Hunks[hi:] {
+				more += len(rest.Lines)
+			}
+			lines = append(lines, trailer(g, more))
+			break
+		}
 		lines = append(lines, g+styleHunk.Render(fit(fmt.Sprintf("@@ -%d,%d +%d,%d @@", h.OldStart, h.OldLines, h.NewStart, h.NewLines), room)))
+		hl := h.Lines
+		more := 0
+		if drawn+len(hl) > maxBodyRows {
+			keep := maxBodyRows - drawn
+			more, hl = len(hl)-keep, hl[:keep]
+			for _, rest := range fc.Hunks[hi+1:] {
+				more += len(rest.Lines)
+			}
+		}
 		// Split each hunk line into its sign and its code; highlight the code
 		// of the whole hunk at once so multi-line constructs are recognised.
-		signs := make([]string, len(h.Lines))
-		codes := make([]string, len(h.Lines))
-		for i, l := range h.Lines {
+		// The sign is one of ' ', '-', '+'; any other first rune means the
+		// line is code with no sign (never split a multi-byte rune).
+		signs := make([]string, len(hl))
+		codes := make([]string, len(hl))
+		for i, l := range hl {
 			l = clean(l)
-			if l == "" {
-				l = " "
+			r, size := utf8.DecodeRuneInString(l)
+			if r == ' ' || r == '-' || r == '+' {
+				signs[i], codes[i] = l[:size], l[size:]
+			} else {
+				signs[i], codes[i] = " ", l
 			}
-			signs[i], codes[i] = l[:1], l[1:]
 		}
 		for i, code := range highlightLines(lx, codes) {
 			sign := " "
@@ -337,6 +418,11 @@ func fileChange(fc event.FileChange, width int, loc *time.Location) []string {
 				sign = styleSignAdd.Render("+")
 			}
 			lines = append(lines, g+sign+fitStyled(code, room-1))
+		}
+		drawn += len(hl)
+		if more > 0 {
+			lines = append(lines, trailer(g, more))
+			break
 		}
 	}
 	return lines

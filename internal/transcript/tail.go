@@ -3,6 +3,7 @@ package transcript
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"time"
@@ -19,6 +20,11 @@ type Line struct {
 // newline. A partial line is held until its newline arrives. If the file
 // shrinks, reading restarts from the beginning. The channel closes when ctx
 // is cancelled. An error opening the file is sent once and the channel closes.
+// maxLine bounds the bytes held for one unterminated line; a longer one is
+// dropped with an error and reading resumes at the next newline. Same bound
+// as Recent's scanner. A variable so tests can lower it.
+var maxLine = 64 << 20
+
 func Tail(ctx context.Context, path string, poll time.Duration) <-chan Line {
 	out := make(chan Line)
 	go func() {
@@ -30,9 +36,10 @@ func Tail(ctx context.Context, path string, poll time.Duration) <-chan Line {
 		}
 		defer f.Close()
 		var (
-			offset  int64
-			partial []byte
-			buf     = make([]byte, 64*1024)
+			offset   int64
+			partial  []byte
+			dropping bool // inside a line that exceeded maxLine: skip to its newline
+			buf      = make([]byte, 64*1024)
 		)
 		for {
 			// Read everything available from offset.
@@ -44,7 +51,24 @@ func Tail(ctx context.Context, path string, poll time.Duration) <-chan Line {
 					for {
 						i := bytes.IndexByte(partial, '\n')
 						if i < 0 {
+							if len(partial) > maxLine {
+								partial, dropping = partial[:0], true
+								if !send(ctx, out, Line{Err: fmt.Errorf("line longer than %d bytes dropped", maxLine)}) {
+									return
+								}
+							}
 							break
+						}
+						if dropping { // the tail of the dropped line
+							partial, dropping = partial[i+1:], false
+							continue
+						}
+						if i > maxLine { // a whole over-long line arrived in one read
+							partial = partial[i+1:]
+							if !send(ctx, out, Line{Err: fmt.Errorf("line longer than %d bytes dropped", maxLine)}) {
+								return
+							}
+							continue
 						}
 						text := string(partial[:i])
 						partial = partial[i+1:]
@@ -77,7 +101,7 @@ func Tail(ctx context.Context, path string, poll time.Duration) <-chan Line {
 			}
 			if st.Size() < offset { // truncated: start over
 				offset = 0
-				partial = partial[:0]
+				partial, dropping = partial[:0], false
 			}
 		}
 	}()

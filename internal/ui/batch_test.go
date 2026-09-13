@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"claude-companion/internal/event"
-	"claude-companion/internal/transcript"
+	"github.com/AmayaHena/claude-companion/internal/event"
+	"github.com/AmayaHena/claude-companion/internal/transcript"
 )
 
 // bashPair returns a tool_use line and its result for command i with a

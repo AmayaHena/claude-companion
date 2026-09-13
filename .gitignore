@@ -8,3 +8,6 @@
 /.claude/
 /.mcp.json
 /.ignore
+
+# written by demo/play.sh while replaying the demo
+/demo/projects/-demo/demo1111-*.jsonl

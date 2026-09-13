@@ -8,7 +8,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 
-	"claude-companion/internal/event"
+	"github.com/AmayaHena/claude-companion/internal/event"
 )
 
 var sgr = regexp.MustCompile(`\x1b\[[0-9;]*m`)
@@ -417,4 +417,44 @@ func TestMarkedCommandWrapsInsteadOfTruncating(t *testing.T) {
 		}
 		assertWidth(t, lines, w)
 	}
+}
+
+// Transcript text is untrusted: a command, its output, a file line or a
+// prompt may carry terminal escape sequences. None may reach the screen.
+// ESC is shown as the visible ␛ so the rest of the sequence is readable as
+// plain text; other C0 controls, DEL and C1 controls are dropped; invalid
+// UTF-8 becomes the replacement character.
+func TestTerminalControlsNeverReachTheScreen(t *testing.T) {
+	hostile := "a\x1b]0;EVIL\x07b\x1b[2Jc\x1b]52;c;RVZJTA==\x07d\x9be\x7ff\x00g\xffh"
+	events := []event.Event{
+		event.Command{ID: "t", At: at, Cmd: "echo " + hostile, Stdout: hostile, Stderr: hostile, ExitKnown: true},
+		event.Command{ID: "t", At: at, Cmd: "git push " + hostile, ExitKnown: true},
+		event.FileChange{ID: "t", At: at, Path: "/tmp/" + hostile + ".go", Kind: event.Create, Content: hostile},
+		event.FileChange{ID: "t", At: at, Path: "/tmp/x.go", Kind: event.Update, Hunks: []event.Hunk{{Lines: []string{"+" + hostile, " " + hostile}}}},
+		event.Prompt{ID: "u", At: at, Text: hostile + "\n" + hostile},
+		event.Rejected{ID: "r", At: at, Tool: "Bash", Subject: hostile},
+		event.Agent{ID: "a", At: at, Description: hostile, Type: hostile},
+		event.Skill{ID: "s", At: at, Name: hostile, Args: hostile},
+	}
+	for _, e := range events {
+		for i, l := range Event(e, 200, time.UTC) {
+			// only our own SGR sequences may remain: strip them, then no ESC, C0, DEL or C1 may be left
+			rest := sgr.ReplaceAllString(l, "")
+			for _, r := range rest {
+				if r < 0x20 || r == 0x7f || (r >= 0x80 && r <= 0x9f) {
+					t.Errorf("%T row %d leaks control %U: %q", e, i, r, l)
+					break
+				}
+			}
+			if strings.Contains(rest, "�") == false && strings.Contains(l, "\xff") {
+				t.Errorf("%T row %d keeps invalid UTF-8: %q", e, i, l)
+			}
+		}
+	}
+	// the text stays readable: ESC becomes ␛ and the payload is visible
+	out := plain(Event(event.Command{ID: "t", At: at, Cmd: "echo x", Stdout: "a\x1b]0;EVIL\x07b", ExitKnown: true}, 200, time.UTC))
+	if out[1] != "      ▕▏a␛]0;EVILb" {
+		t.Errorf("sanitised output = %q", out[1])
+	}
+	assertWidth(t, Event(events[0], 40, time.UTC), 40)
 }

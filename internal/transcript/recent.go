@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"claude-companion/internal/event"
+	"github.com/AmayaHena/claude-companion/internal/event"
 )
 
 // Session describes one main-session transcript for the picker.
