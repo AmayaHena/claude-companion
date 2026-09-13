@@ -42,6 +42,56 @@ to them.
 If a change needs a clock, a socket or a write to work, the change is wrong
 for this tool.
 
+### Audited, with checks you can rerun
+
+Before v1 the code went through a five-lens audit (security, determinism and
+no model calls, read-only, no network, privacy), fifteen independent agents,
+every finding handed to a skeptic instructed to refute it. Ten findings were
+verified, none refuted, all fixed or documented below. The claims above are
+backed by tests in the repository and by commands anyone can run:
+
+| claim | proof in the repo | rerun it yourself |
+|---|---|---|
+| no network | no `net`, `net/http` or TLS package in the binary's dependency graph | `go list -deps ./cmd/claude-companion \| grep -E '^(net\|net/http\|crypto/tls)$'` prints nothing |
+| read-only | four filesystem calls in product code, all reads; `TEA_TRACE`/`TEA_DEBUG` unset at startup | `grep -rn 'os\.\(Create\|WriteFile\|OpenFile\|Mkdir\|Remove\)' cmd internal` prints nothing; run it and `lsof -p <pid>` shows the transcript opened `r` |
+| deterministic | one wall-clock read (`time.Now` in `main`, for the picker's "ago"); footer order is a fixed list | `grep -rn 'time.Now\|math/rand' cmd internal` shows that single line |
+| untrusted input is inert | `TestTerminalControlsNeverReachTheScreen`, `TestTitleAndErrorAreSanitised`, `TestPickerSanitisesTranscriptText`, `TestCopySanitisesAndCountsLines`, `TestMarksAreDecidedOnSanitisedText` | `go test ./... -run 'Sanitis\|Controls\|Marks'` |
+| bounded work | `TestHugeBodiesAreCapped`, `TestTailDropsAnEndlessLine` | `go test ./... -run 'Capped\|Endless'` |
+| no build-machine paths | `-trimpath` in the documented build | `go build -trimpath ./cmd/claude-companion && strings claude-companion \| grep -c "$HOME"` prints 0 |
+
+Every guard was mutation-checked: removing it makes its test fail.
+
+What the audit found and what was done:
+
+- Escape sequences inside a transcript reached the terminal raw, enough to
+  rename the tab, clear the screen or write the clipboard from a command's
+  output. Fixed: every transcript string is sanitised before the screen, the
+  title, the footer, the picker and the clipboard.
+- The git warning was decided on raw text, so an invisible byte inside
+  `git push` removed it. Fixed: marks are decided on the sanitised text.
+- `c` copied a multi-line command while the screen showed one line. Fixed:
+  the copy is sanitised and the footer says how many lines went out.
+- An unterminated line grew memory without bound; a multi-million-line
+  write froze the viewer. Fixed: 64 MB line cap, 2,000 rows per event.
+- Bubble Tea writes trace and panic files when `TEA_TRACE` or `TEA_DEBUG` is
+  set. Fixed: both unset at startup.
+- A plain `go build` embedded the builder's home directory. Fixed: `-trimpath`.
+
+Known and accepted:
+
+- Inside tmux, the terminal library runs `tmux info` once at startup to read
+  colour capabilities. No other subprocess exists.
+- The tailer follows the opened file, not the path: a transcript replaced in
+  place by a different file is not re-opened. Claude Code appends, it does
+  not replace.
+- The session picker reads at most the first 200 lines of the ten most recent
+  transcripts to show a folder and a first prompt; nothing is kept.
+- Test fixtures are cut from the author's own sessions and carry the
+  author's home path and username, nothing else identifying.
+- Everything in a transcript is shown as it is: a secret printed by a command
+  is visible in the viewer exactly as it was in the session. The tool does
+  not redact; it does not send anything anywhere.
+
 ## Use
 
 Run it without an argument to pick one of the ten most recent sessions across
