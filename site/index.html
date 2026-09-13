@@ -29,7 +29,7 @@
         <a class="brand" href="https://github.com/AmayaHena/claude-companion"><svg class="brand-mark" viewBox="0 0 40 40" aria-hidden="true"><rect x="0" y="0" width="8" height="8"/><rect x="8" y="0" width="8" height="8"/><rect x="0" y="8" width="8" height="8"/><rect x="8" y="8" width="8" height="8"/><rect x="16" y="8" width="8" height="8"/><rect x="16" y="16" width="8" height="8"/><rect x="24" y="16" width="8" height="8"/><rect x="24" y="24" width="8" height="8"/><rect x="32" y="24" width="8" height="8"/><rect x="32" y="32" width="8" height="8"/></svg><span>claude-companion</span></a>
         <span class="label blue">Read-only viewer for Claude Code sessions</span>
         </div>
-        <h1><span class="line">See what</span><span class="line">Claude Code <span class="nowrap"><span class="hl">does</span><span class="cursor blue" aria-hidden="true"></span></span></span><span class="line">not what it says.</span></h1>
+        <h1><span class="line">See what</span><span class="line">Claude Code <span class="nowrap"><span class="hl">does</span><span class="cursor blue" aria-hidden="true"></span></span></span><span class="line">not what it says</span></h1>
         <p class="lead">Commands, their output, files as diffs, live from the session transcript. Deterministic, offline, sanitised.</p>
         <div class="install" role="group" aria-label="Install command">
           <code id="cmd"><span class="p">$ </span>go install github.com/AmayaHena/claude-companion/cmd/claude-companion@v1.0.0</code>
@@ -53,9 +53,26 @@
   <div class="hazard" aria-hidden="true"></div>
   <div class="wrap strip" aria-hidden="true"><span>Go 1.27 · Bubble Tea v2</span><span>Net packages linked <b>0</b></span><span>Files written <b>0</b></span><span>Tests <b>77</b> offline</span></div>
 
+  <section class="wrap" id="glyphs">
+    <div class="head reveal">
+      <h2>Eight glyphs,<br>one per kind of action</h2>
+      <span class="label ghost blue">The row starts with the clock, then one of these</span>
+    </div>
+    <div class="legend reveal" style="--i:1">
+      <div class="g"><span class="glyph">⚒️</span><b>Command</b><span>a Bash call, output under a bar</span></div>
+      <div class="g"><span class="glyph">❗</span><b>Failed or refused</b><span>non-zero exit, or a tool use you rejected</span></div>
+      <div class="g"><span class="glyph">⚠️</span><b>Git write</b><span>add, commit, push, merge, gh pr create…</span></div>
+      <div class="g"><span class="glyph">🛜</span><b>Network</b><span>curl, ssh, git fetch, npm install…</span></div>
+      <div class="g"><span class="glyph">📁</span><b>Edit</b><span>an existing file, shown as hunks</span></div>
+      <div class="g"><span class="glyph">🆕</span><b>Created file</b><span>its whole content as added lines</span></div>
+      <div class="g"><span class="glyph">🤖</span><b>Subagent</b><span>a launch line with its type</span></div>
+      <div class="g"><span class="glyph">ℹ️</span><b>Skill</b><span>a skill invocation with its arguments</span></div>
+    </div>
+  </section>
+
   <section class="wrap" id="principles">
     <div class="head reveal">
-      <h2>Three properties,<br>held to in code.</h2>
+      <h2>Three properties,<br>held to in code</h2>
       <span class="label ghost blue">Checked by tests, not by promise</span>
     </div>
     <div class="cards">
@@ -82,7 +99,7 @@
 
   <section class="wrap" id="see">
     <div class="head reveal">
-      <h2>One row per action,<br>in your terminal's palette.</h2>
+      <h2>One row per action,<br>in your terminal's palette</h2>
       <span class="label ghost blue">Every string sanitised</span>
     </div>
     <div class="grid">
@@ -145,7 +162,7 @@
     <svg class="checker l" viewBox="0 0 100 100" aria-hidden="true"><rect x="0" y="0" width="50" height="50"/><rect x="50" y="50" width="50" height="50"/></svg><svg class="checker r" viewBox="0 0 100 100" aria-hidden="true"><rect x="0" y="0" width="50" height="50"/><rect x="50" y="50" width="50" height="50"/></svg>
     <div class="wrap">
       <div class="head reveal">
-        <h2>Audited before v1.<br>Rerun the checks.</h2>
+        <h2>Audited before v1,<br>rerun the checks</h2>
         <span class="label">Ten findings verified, none refuted</span>
       </div>
       <p class="sub">Five lenses, fifteen independent agents, every finding handed to a skeptic told to refute it. All fixed or documented. The claims are backed by tests and by commands anyone can run.</p>
@@ -184,7 +201,7 @@
       <i class="tl"></i><i class="tr"></i><i class="bl"></i><i class="br"></i>
       <div>
         <span class="tag violet">Keys</span>
-        <h2>Drive it from the keyboard.</h2>
+        <h2>Drive it from the keyboard</h2>
         <dl class="keys">
           <dt><kbd>q</kbd> <kbd>esc</kbd></dt><dd>quit</dd>
           <dt><kbd>↑</kbd> <kbd>↓</kbd> <kbd>j</kbd> <kbd>k</kbd></dt><dd>scroll; the view follows the tail until you scroll up</dd>
@@ -195,7 +212,7 @@
       </div>
       <div>
         <span class="tag mint">Demo</span>
-        <h2>Try it without a session.</h2>
+        <h2>Try it without a session</h2>
         <p>Run the bundled replay in one terminal, the viewer in another. The replay appends one line every 0.8 s.</p>
         <pre>sh demo/play.sh</pre>
         <pre>CLAUDE_CONFIG_DIR="$PWD/demo" claude-companion demo1111</pre>
