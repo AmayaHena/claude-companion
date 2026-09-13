@@ -322,11 +322,19 @@ panel in the hero and the five samples are REAL renders of `demo/` through
 `render.Event` converted to spans (class per SGR: `b`, `dim`, `u`,
 `c-<colour>`); regenerate them with a throwaway `cmd/zz-htmldump` (see the
 2026-09-13 session) rather than hand-editing rows. Design decisions:
-graphic-realism language (flat blocks, one accent `#3bd1e3` replacing the
-reference's yellow, one hazard-stripe band, grain via an SVG feTurbulence
-layer fixed over the page, blurred radial gradients inside contained panels),
-radius 0 everywhere, dark theme locked, no em dashes, no icon library, no
-emoji outside the real terminal renders. Motion: rows arrive with a 55 ms
+Marathon-style graphic realism after the owner's reference screenshots
+(second iteration, 2026-09-13; the first, a generic dark landing with a
+cyan accent, was rejected): HUD chrome (fixed crop marks at the viewport
+corners, a rotated edge label, captioned progress bars with real numbers,
+mono caps labels in acid blocks), pixel-block marks and checkerboards as
+inline SVG rects, a barcode strip, a hazard strip, caps display type in
+Archivo at 116-118% width with the key word on a flat acid block plus a
+cursor block, one acid accent `#c8ff2e` replacing the reference's yellow,
+one full-bleed electric-blue field (`#1f2ee3`, the audit section), one
+light document panel (`#e6e9e4` with mint and violet tags, keys and demo),
+scanlines and grain fixed over the page, a blurred rust/teal field with
+soft-light noise behind the hero. Radius 0 everywhere, no em dashes, no
+icon library, no emoji outside the real terminal renders. Motion: rows arrive with a 55 ms
 stagger on load (explanatory), reveal-once on scroll armed by JS with a 2.5 s
 release timer so nothing can stay hidden, all gated by
 `prefers-reduced-motion`. Checks used: an iframe probe page in headless
