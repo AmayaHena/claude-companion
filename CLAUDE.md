@@ -314,6 +314,31 @@ inode, not the path (a transcript replaced in place is not re-opened);
 fixtures carry `/Users/amaya` paths and the public username; the picker reads
 at most 200 lines of the 10 most recent sessions.
 
+## Website (`site/`, published by `.github/workflows/pages.yml`)
+
+Static, no build: `index.html`, `style.css`, `main.js`, `fonts/` (Archivo and
+Geist Mono variable woff2, latin subset, OFL texts alongside). The terminal
+panel in the hero and the five samples are REAL renders of `demo/` through
+`render.Event` converted to spans (class per SGR: `b`, `dim`, `u`,
+`c-<colour>`); regenerate them with a throwaway `cmd/zz-htmldump` (see the
+2026-09-13 session) rather than hand-editing rows. Design decisions:
+graphic-realism language (flat blocks, one accent `#3bd1e3` replacing the
+reference's yellow, one hazard-stripe band, grain via an SVG feTurbulence
+layer fixed over the page, blurred radial gradients inside contained panels),
+radius 0 everywhere, dark theme locked, no em dashes, no icon library, no
+emoji outside the real terminal renders. Motion: rows arrive with a 55 ms
+stagger on load (explanatory), reveal-once on scroll armed by JS with a 2.5 s
+release timer so nothing can stay hidden, all gated by
+`prefers-reduced-motion`. Checks used: an iframe probe page in headless
+Chrome for overflow/media-query/font facts (a plain `--screenshot` at 400 px
+reports a false overflow on macOS), `grep -P '[\x{2014}\x{2013}]'` for
+dashes. GitHub Pages: the API answered "Your current plan does not support
+GitHub Pages for this repository" while the repo is private; the workflow
+will fail until the repo is public and Pages is enabled with source
+"GitHub Actions". Repo-level skills installed for site work (gitignored under
+`.claude/skills/`): taste-skill (design-taste-frontend), ui-ux-pro-max,
+animate.
+
 ## Out of scope so far (do not build silently)
 
 The work done inside subagents (only the launch line `🤖` is shown), the

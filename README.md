@@ -8,6 +8,9 @@ their diffs, live, as the session goes. It never shows the assistant's answers.
 claude-companion [session-id | unique prefix]
 ```
 
+Site: https://amayahena.github.io/claude-companion/ (served from `site/` by
+GitHub Pages; goes live once the repository is public).
+
 ## Deterministic, offline, read-only
 
 These three properties are the design, not features, and every change is held
