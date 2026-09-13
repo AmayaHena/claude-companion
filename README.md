@@ -5,8 +5,39 @@ A read-only terminal viewer for one Claude Code session. It shows what Claude
 their diffs, live, as the session goes. It never shows the assistant's answers.
 
 ```
-claude-companion <session-id | unique prefix>
+claude-companion [session-id | unique prefix]
 ```
+
+## Deterministic, offline, read-only
+
+These three properties are the design, not features, and every change is held
+to them.
+
+- **Deterministic.** The screen is a pure function of the transcript file,
+  the terminal width and your time zone. Same file, same width: same rows,
+  every time. There is no randomness, no timer, no animation, no state kept
+  between runs. The only place the wall clock is read is the "3 min ago"
+  column of the session picker.
+- **No network.** The binary imports no network package and opens no socket.
+  No telemetry, no update check, no API call, no model. Everything on screen
+  comes from bytes already on your disk. The one thing that leaves the
+  process is terminal output to your own terminal, which includes the OSC 52
+  escape used when you press `c` to copy a command.
+- **Read-only.** Transcripts are opened for reading and polled by size. The
+  tool writes no file, no cache, no config, and never touches the transcript
+  or Claude Code's state. You can run it against a live session with nothing
+  at risk.
+
+If a change needs a clock, a socket or a write to work, the change is wrong
+for this tool.
+
+## Use
+
+Run it without an argument to pick one of the ten most recent sessions across
+all projects: each row shows the id, the time since the last write, the
+project folder and the first prompt. `↑ ↓` move, `enter` opens, `q` quits.
+With an id or a unique prefix it opens that session directly. There is no
+opening screen: the log shows from the first line.
 
 Keys: `q`, `esc`, `ctrl+c` quit. `↑ ↓`, `j k`, `pgup pgdn`, `home end` scroll.
 `c` copies the latest command to the clipboard; `tab` and `shift+tab` move the
@@ -14,24 +45,22 @@ copy target to older commands, the footer names it. The copy goes through the
 terminal's OSC 52 support; in Ghostty, `clipboard-write = allow` avoids a
 confirmation on each copy.
 
-Run it without an argument to pick one of the ten most recent sessions across
-all projects: each row shows the id, the time since the last write, the
-project folder and the first prompt. `↑ ↓` move, `enter` opens, `q` quits.
-The mouse wheel scrolls too: the tool does not capture the mouse, so the
-terminal keeps text selection and translates wheel motion into arrow keys. Newest at the bottom; the view follows the tail until you
-scroll up, and resumes when you scroll back down or press `end`. The footer
-is a tally of the whole session: the share of each action glyph in percent,
-then plain counts of git warnings `⚠️` (red), network commands `🛜`, subagent
-launches `🤖` (blue) and skills `ℹ️` (green), and any lines that could not be
-parsed. A new prompt clears the screen and the tally.
+The tool does not capture the mouse, so the terminal keeps its own text
+selection. Newest at the bottom; the view follows the tail until you scroll
+up, and resumes when you scroll back down or press `end`. The footer is a
+tally of the work since your last prompt: the share of each action glyph in
+percent, then plain counts of git warnings `⚠️` (red), network commands `🛜`,
+subagent launches `🤖` (blue) and skills `ℹ️` (green), and any lines that
+could not be parsed. A new prompt clears the screen and the tally.
 
 ## What it reads
 
 The session transcript Claude Code writes at
 `~/.claude/projects/<slug>/<session-id>.jsonl` (or under `$CLAUDE_CONFIG_DIR`
-when set, the same override Claude Code honours). The file is opened read-only
-and polled every 250 ms. Nothing is written anywhere, nothing touches the
-network. Subagents write to separate files and are not shown.
+when set, the same override Claude Code honours). The file is opened for
+reading only and its size polled every 100 ms; a line is parsed only once its
+newline has arrived, and a shrunken file is read again from the start.
+Subagents write to separate files; only their launch line is shown.
 
 Each action starts with a header row: a faded clock (`HH:MM`), the glyph and
 the title. Output and diff rows below it carry a coloured bar under the
@@ -70,7 +99,14 @@ go build ./cmd/claude-companion
 go test ./...
 ```
 
-Go 1.27, `charm.land/bubbletea/v2`, `charm.land/lipgloss/v2`, `charm.land/bubbles/v2`.
+Go 1.27. Direct dependencies: `charm.land/bubbletea/v2`, `charm.land/lipgloss/v2`,
+`charm.land/bubbles/v2`, `github.com/alecthomas/chroma/v2` (lexers only) and
+`github.com/charmbracelet/x/ansi`. None of them is used for anything that
+reaches the network.
+
+The tests are offline too: fixtures are two-line cuts of real transcripts with
+the payloads neutralised, and the suite runs with no network and no home
+directory access.
 
 An opt-in replay against a real transcript:
 
