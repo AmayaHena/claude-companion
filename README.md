@@ -1,20 +1,120 @@
-# claude-companion
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="site/brand-dark.svg">
+    <img src="site/brand-light.svg" width="312" height="52" alt="claude-companion">
+  </picture>
+</p>
 
-A read-only terminal viewer for one Claude Code session. It shows what Claude
-*does*: the commands it runs with their output, and the files it changes with
-their diffs, live, as the session goes. It never shows the assistant's answers.
+<p align="center">See what Claude Code <b>does</b>, not what it says.</p>
+
+A read-only terminal viewer for one Claude Code session. It shows the commands
+Claude runs with their output, and the files it changes with their diffs, live,
+as the session goes. It never shows the assistant's answers. Deterministic,
+offline, sanitised.
+
+Site: https://amayahena.github.io/claude-companion/
+
+## Contents
+
+1. [Install](#install)
+2. [Use](#use)
+3. [What you see](#what-you-see)
+4. [What it reads](#what-it-reads)
+5. [Deterministic, offline, read-only](#deterministic-offline-read-only)
+6. [Audited, with checks you can rerun](#audited-with-checks-you-can-rerun)
+7. [Demo](#demo)
+8. [Build and test](#build-and-test)
+9. [Docs](#docs)
+
+## Install
+
+```
+go install github.com/AmayaHena/claude-companion/cmd/claude-companion@v1.0.0
+```
+
+Needs Go 1.27. The binary lands in `$(go env GOPATH)/bin`, usually `~/go/bin`;
+put that directory on your `PATH` if it is not already.
+
+## Use
 
 ```
 claude-companion [session-id | unique prefix]
 ```
 
-Site: https://amayahena.github.io/claude-companion/ (served from `site/` by
-GitHub Pages; goes live once the repository is public).
+Without an argument it lists the ten most recent sessions across all projects:
+each row shows the id, the time since the last write, the project folder and
+the first prompt. `↑ ↓` move, `enter` opens, `q` quits. With an id or a unique
+prefix it opens that session directly. There is no opening screen: the log
+shows from the first line.
+
+| key | action |
+|---|---|
+| `q`, `esc`, `ctrl+c` | quit |
+| `↑ ↓`, `j k`, `pgup pgdn` | scroll; the view follows the tail until you scroll up |
+| `home`, `end` | top (pauses following), bottom (resumes) |
+| `c` | copy the latest command to the clipboard |
+| `tab`, `shift+tab` | move the copy target to an older or newer command; the footer names it |
+
+The whole command is copied, sanitised, even when the screen shows only its
+first line; the footer says how many lines went out. The copy goes through
+the terminal's OSC 52 support; in Ghostty, `clipboard-write = allow` avoids a
+confirmation on each copy.
+
+The tool does not capture the mouse, so the terminal keeps its own text
+selection. Colours come from the terminal's palette, so your theme is what
+you see.
+
+## What you see
+
+Each action is a header row, a faded clock (`HH:MM`), the glyph and the title,
+then output or diff rows carrying a coloured bar under the glyph, one hue per
+action: yellow for a command, red for a failed one, magenta for an edit, cyan
+for a created file. Long commands and prompts wrap onto bar-free continuation
+rows; output and diff lines are cut at the width. A blank line ends each
+action.
+
+| row | meaning |
+|---|---|
+| `⚒️` command | a Bash tool call, the command syntax-highlighted; output below it, stderr in red |
+| `❗` with `exit N` | the command failed; `exit ?` when the code is unknown |
+| `⚒️ …` | still running (result not in the transcript yet); `bg` = moved to background |
+| `📁` path | an Edit or a Write to an existing file, followed by its hunks |
+| `🆕` path | a Write that created the file; its content shown as added lines |
+| `❗` `rejected` | a tool use you refused in Claude Code |
+| `⚠️ ⚒️` underlined red | a command that writes git or GitHub state: `git add/commit/merge/rebase/cherry-pick/revert/reset/clean/tag/push…`, `gh pr create/merge`, `gh release create`, `gh api -X POST…` |
+| `🛜 ⚒️` | a command that reaches the network: `curl`, `wget`, `ssh`, `git fetch/pull/clone`, `gh`, `npm install`, `go get`, `brew install`, `docker pull`, `aws`, `kubectl`… |
+| `🤖` description | a subagent launched by Claude, in blue, with its type; the subagent's own work is not shown |
+| `ℹ️` skill | a skill invoked by Claude, in green, with its arguments |
+| `HH:MM   text` | one of your prompts, bold, every line shown and wrapped |
+
+A new prompt clears the screen and starts a new block, so what you see is
+always the work done since your last message.
+
+The footer is a tally of that block: the share of each action glyph in
+percent, then plain counts of git warnings `⚠️` (red), network commands `🛜`,
+subagent launches `🤖` (blue) and skills `ℹ️` (green), and any lines that
+could not be parsed.
+
+Diff and file lines are syntax-highlighted from the file's extension, with the
+`+` and `-` signs kept bold green and bold red. Highlighting uses chroma's
+lexers with a fixed map to five palette colours (keywords magenta, strings
+green, numbers cyan, comments dim, function and builtin names blue), so it
+follows your terminal theme like everything else.
+
+## What it reads
+
+The session transcript Claude Code writes at
+`~/.claude/projects/<slug>/<session-id>.jsonl` (or under `$CLAUDE_CONFIG_DIR`
+when set, the same override Claude Code honours). The file is opened for
+reading only and its size polled every 100 ms; a line is parsed only once its
+newline has arrived, and a shrunken file is read again from the start.
+Subagents write to separate files; only their launch line is shown.
 
 ## Deterministic, offline, read-only
 
 These three properties are the design, not features, and every change is held
-to them.
+to them. If a change needs a clock, a socket or a write to work, the change is
+wrong for this tool.
 
 - **Deterministic.** The screen is a pure function of the transcript file,
   the terminal width and your time zone. Same file, same width: same rows,
@@ -42,10 +142,7 @@ to them.
   unterminated line at 64 MB, so a hostile or huge transcript cannot freeze
   the viewer or drive your terminal.
 
-If a change needs a clock, a socket or a write to work, the change is wrong
-for this tool.
-
-### Audited, with checks you can rerun
+## Audited, with checks you can rerun
 
 Before v1 the code went through a five-lens audit (security, determinism and
 no model calls, read-only, no network, privacy), fifteen independent agents,
@@ -64,7 +161,7 @@ backed by tests in the repository and by commands anyone can run:
 
 Every guard was mutation-checked: removing it makes its test fail.
 
-What the audit found and what was done:
+### Found and fixed
 
 - Escape sequences inside a transcript reached the terminal raw, enough to
   rename the tab, clear the screen or write the clipboard from a command's
@@ -80,7 +177,7 @@ What the audit found and what was done:
   set. Fixed: both unset at startup.
 - A plain `go build` embedded the builder's home directory. Fixed: `-trimpath`.
 
-Known and accepted:
+### Known and accepted
 
 - Inside tmux, the terminal library runs `tmux info` once at startup to read
   colour capabilities. No other subprocess exists.
@@ -95,70 +192,22 @@ Known and accepted:
   is visible in the viewer exactly as it was in the session. The tool does
   not redact; it does not send anything anywhere.
 
-## Use
+## Demo
 
-Run it without an argument to pick one of the ten most recent sessions across
-all projects: each row shows the id, the time since the last write, the
-project folder and the first prompt. `↑ ↓` move, `enter` opens, `q` quits.
-With an id or a unique prefix it opens that session directly. There is no
-opening screen: the log shows from the first line.
+No real session needed. In one terminal:
 
-Keys: `q`, `esc`, `ctrl+c` quit. `↑ ↓`, `j k`, `pgup pgdn`, `home end` scroll.
-`c` copies the latest command to the clipboard; `tab` and `shift+tab` move the
-copy target to older commands, the footer names it. The whole command is
-copied, sanitised, even when the screen shows only its first line; the footer
-says how many lines went out. The copy goes through the terminal's OSC 52
-support; in Ghostty, `clipboard-write = allow` avoids a confirmation on each
-copy.
+```
+sh demo/play.sh
+```
 
-The tool does not capture the mouse, so the terminal keeps its own text
-selection. Newest at the bottom; the view follows the tail until you scroll
-up, and resumes when you scroll back down or press `end`. The footer is a
-tally of the work since your last prompt: the share of each action glyph in
-percent, then plain counts of git warnings `⚠️` (red), network commands `🛜`,
-subagent launches `🤖` (blue) and skills `ℹ️` (green), and any lines that
-could not be parsed. A new prompt clears the screen and the tally.
+It replays a synthetic transcript with one event of each kind, one line every
+0.8 s. In another terminal, right after:
 
-## What it reads
+```
+CLAUDE_CONFIG_DIR="$PWD/demo" claude-companion demo1111
+```
 
-The session transcript Claude Code writes at
-`~/.claude/projects/<slug>/<session-id>.jsonl` (or under `$CLAUDE_CONFIG_DIR`
-when set, the same override Claude Code honours). The file is opened for
-reading only and its size polled every 100 ms; a line is parsed only once its
-newline has arrived, and a shrunken file is read again from the start.
-Subagents write to separate files; only their launch line is shown.
-
-Each action starts with a header row: a faded clock (`HH:MM`), the glyph and
-the title. Output and diff rows below it carry a coloured bar under the
-glyph, one hue per action: yellow for a command, red for a failed one,
-magenta for an edit, cyan for a created file. Long commands and prompts wrap onto
-bar-free continuation rows; output and diff lines are cut at the width. A blank line ends each action. A new prompt clears
-the screen and starts a new block, so what you see is always the work done
-since your last message.
-
-| row | meaning |
-|---|---|
-| `⚒` command | a Bash tool call, the command syntax-highlighted; output below it, stderr in red |
-| `❗` with `exit N` | the command failed; `exit ?` when the code is unknown |
-| `⚒ … ` | still running (result not in the transcript yet); `bg` = moved to background |
-| `📁` path | an Edit or a Write to an existing file, followed by its hunks |
-| `🆕` path | a Write that created the file; its content shown as added lines |
-| `❗` `rejected` | a tool use you refused in Claude Code |
-| `⚠️ ⚒` underlined red | a command that writes git or GitHub state: `git add/commit/merge/rebase/cherry-pick/revert/reset/clean/tag/push…`, `gh pr create/merge`, `gh release create`, `gh api -X POST…` |
-| `🛜 ⚒` | a command that reaches the network: `curl`, `wget`, `ssh`, `git fetch/pull/clone`, `gh`, `npm install`, `go get`, `brew install`, `docker pull`, `aws`, `kubectl`… |
-| `🤖` description | a subagent launched by Claude, in blue, with its type; the subagent's own work is not shown |
-| `ℹ️` skill | a skill invoked by Claude, in green, with its arguments |
-| `HH:MM   text` | one of your prompts, bold, every line shown and wrapped |
-
-Diff and file lines are syntax-highlighted from the file's extension, with
-the `+` and `-` signs kept bold green and bold red. Highlighting uses chroma's
-lexers with a fixed map to five palette colours (keywords magenta, strings
-green, numbers cyan, comments dim, function and builtin names blue), so it
-follows your terminal theme like everything else.
-
-Colours are the terminal's own palette, so your Ghostty theme is what you see.
-
-## Build
+## Build and test
 
 ```
 go build -trimpath ./cmd/claude-companion
@@ -185,10 +234,8 @@ CLAUDE_COMPANION_E2E_EXPECT=<commands>,<files>,<rejected>,<prompts> \
 go test ./internal/ui/ -run TestReplayRealSession -v
 ```
 
-A self-contained demo, no real session needed: in one terminal
-`sh demo/play.sh`, which replays a synthetic transcript with one event of each
-kind, one line every 0.8 s; in another, right after,
-`CLAUDE_CONFIG_DIR="$PWD/demo" claude-companion demo1111`.
+## Docs
 
-Design: `docs/superpowers/specs/2026-09-10-claude-companion-design.md`.
-Architecture: `docs/architecture.md`.
+- Design: `docs/superpowers/specs/2026-09-10-claude-companion-design.md`
+- Architecture: `docs/architecture.md`
+- Website source: `site/`, published by `.github/workflows/pages.yml`
